@@ -20,7 +20,7 @@ if __name__ == "__main__":
 	'pandas',
 	'db_queries',
 	'numpy',
-	'scipy.stats',
+	'scipy',
     ]
     test_requirements = [
 	'pytest',
