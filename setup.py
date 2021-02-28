@@ -17,9 +17,14 @@ if __name__ == "__main__":
     #    long_description = f.read()
 
     install_requirements = [
-        'pytest'
+	'pandas',
+	'db_queries',
+	'numpy',
+	'scipy.stats',
     ]
-
+    test_requirements = [
+	'pytest',
+    ]
 
     setup(
         name=about['__title__'],
@@ -38,7 +43,8 @@ if __name__ == "__main__":
         include_package_data=True,
 
         install_requires=install_requirements,
-        extras_require={
+        test_require=test_requirements,
+	extras_require={
             #'data': data_requires,
         },
 
