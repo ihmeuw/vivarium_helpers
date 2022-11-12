@@ -16,6 +16,9 @@ def weighted_l2_loss(x,y,weights):
     x,y,weights = map(np.asarray, [x,y,weights])
     return ((weights*(x-y))**2).sum()
 
+def arglist(*args, **kwargs):
+    return [*args, kwargs]
+
 def method_of_moments(
     moments,
     distribution,
