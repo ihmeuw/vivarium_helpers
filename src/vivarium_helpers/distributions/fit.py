@@ -56,10 +56,10 @@ def method_of_moments(
     # *pos_params, kwd_params = initial_parameters
     pos_params, kwd_params = _parse_arglist(initial_parameters)
     print(fixed_kwargs, kwd_params)
-    if not fixed_kwargs.keys().isdisjoint(kwd_params.keys()):
-        raise ValueError(
-            "Optimization keyword parameters overlap with fixed"
-            f" keyword parameters: {fixed_kwargs.keys() & kwd_params.keys()}")
+    # if not fixed_kwargs.keys().isdisjoint(kwd_params.keys()):
+    #     raise ValueError(
+    #         "Optimization keyword parameters overlap with fixed"
+    #         f" keyword parameters: {fixed_kwargs.keys() & kwd_params.keys()}")
     # Record # of positional arguments for convenience in objective_function
     num_positional = len(pos_params)
     # Save keys for keyword parameters to pass to distribution in objective_function.
@@ -73,8 +73,8 @@ def method_of_moments(
         kwd_params = dict(zip(param_keys, parameters[num_positional:]))
         # assert (fixed_args, fixed_kwargs) == _parse_arglist(args), \
         #     f"{fixed_args=}, {fixed_kwargs=}, {args=}"
-        kwd_args = {**kwd_params, **fixed_kwargs}
-        return distribution(*pos_params, *fixed_args, **kwd_args)
+        # kwd_args = {**kwd_params, **fixed_kwargs}
+        return distribution(*pos_params, *fixed_args, **kwd_params, **fixed_kwargs)
 
     def objective_function(parameters):
         dist = dist_from_parameters(parameters)
