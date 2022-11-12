@@ -39,18 +39,6 @@ def method_of_moments(
     param_keys = kwd_params.keys()
     # Convert initial parameters into a list of values, to be compatible with minimize.
     initial_parameters = [*pos_params, *kwd_params.values()]
-#     if isinstance(initial_parameters[-1], dict):
-#         num_positional = len(initial_parameters)-1
-#         # Save keys for keyword parameters to pass to distribution in objective_function.
-#         param_keys = initial_parameters[-1].keys()
-#         # Convert initial parameters into a list of values, to be compatible with minimize.
-#         initial_parameters = [*initial_parameters[:-1], *initial_parameters[-1].values()]
-#     if len(initial_parameters) == 2 and isinstance(initial_parameters[1], dict):
-#         num_positional = len(initial_parameters[0])
-#         # Save keys for keyword parameters to pass to distribution in objective_function.
-#         param_keys = initial_parameters[1].keys()
-#         # Convert initial parameters into a list of values, to be compatible with minimize.
-#         initial_parameters = [*initial_parameters[0], *initial_parameters[1].values()]
 
     print(initial_parameters)
     def dist_from_parameters(parameters):
