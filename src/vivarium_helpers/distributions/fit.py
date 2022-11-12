@@ -17,14 +17,14 @@ def weighted_l2_loss(x,y,weights):
     return ((weights*(x-y))**2).sum()
 
 def arglist(*args, **kwargs):
-    return [*args, kwargs]
+    return (*args, kwargs)
 
 def _parse_arglist(arg_list):
     # Conform arg_list to the form [*args, kwargs]
     if isinstance(arg_list, dict):
-        arg_list = [arg_list]
+        arg_list = (arg_list,)
     elif len(arg_list) == 0 or not isinstance(arg_list[-1], dict):
-        arg_list = [*arg_list, {}]
+        arg_list = (*arg_list, {})
     *args, kwargs = arg_list
     return args, kwargs
 
