@@ -24,16 +24,21 @@ def method_of_moments(
     **kwargs,
 ):
     mean, variance = moments
+    # Ensure that initial_parameters has the form [*args, kwargs]
     if isinstance(initial_parameters, dict):
         initial_parameters = [initial_parameters]
     print(initial_parameters)
-    if isinstance(initial_parameters[-1], dict):
-        *pos_params, kwd_params = initial_parameters
-        num_positional = len(pos_params)
-        # Save keys for keyword parameters to pass to distribution in objective_function.
-        param_keys = kwd_params.keys()
-        # Convert initial parameters into a list of values, to be compatible with minimize.
-        initial_parameters = [*pos_params, *kwd_params.values()]
+    if not isinstance(initial_parameters[-1], dict):
+        initial_parameters = [*initial_parameters, {}]
+
+    # Extract positional and keyword parameters from parameter list
+    *pos_params, kwd_params = initial_parameters
+    # Record # of positional arguments for convenience in objective_function
+    num_positional = len(pos_params)
+    # Save keys for keyword parameters to pass to distribution in objective_function.
+    param_keys = kwd_params.keys()
+    # Convert initial parameters into a list of values, to be compatible with minimize.
+    initial_parameters = [*pos_params, *kwd_params.values()]
 #     if isinstance(initial_parameters[-1], dict):
 #         num_positional = len(initial_parameters)-1
 #         # Save keys for keyword parameters to pass to distribution in objective_function.
@@ -60,4 +65,4 @@ def method_of_moments(
 
     result = minimize(objective_function, initial_parameters, **kwargs)
     best_params = result.x
-    return distribution(*best_params), result
+    return dist_from_parameters(best_params), result
