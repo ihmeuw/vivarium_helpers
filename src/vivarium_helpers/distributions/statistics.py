@@ -13,26 +13,54 @@ def get_stats(moments='mv'):
         return distribution.stats(moments)
     return stats
 
-def get_statistic_and_interval_probability(statistic, lower, upper):
-    """Return the specified statistic of the distribution and the probability
-    that a random variable lies in the interval [lower, upper].
+def get_distribution_statistic(statistic):
+    """Returns a function of a frozen `scipy.stats.rv_continuous` object
+    that returns the specified statistic of the distribution.
 
     statistic: str
         The name of a method on a scipy.stats rv_continuous object that
         returns a single real number. Namely, one of 'mean', 'median',
-        'var', 'std', or 'entropy'.
+        'var', 'std', 'skew', 'kurtosis', or 'entropy'.
+    """
+    if statistic in ['skew', 'kurtosis']:
+        distribution_statistic = lambda dist: dist.stats(statistic[0])
+    else:
+        distribution_statistic = lambda dist: getattr(dist, statistic)()
+    # def distribution_statistic(distribution):
+    #     if statistic in ['skew', 'kurtosis']:
+    #         statistic = distribution.stats(statistic[0])
+    #     else:
+    #         statistic = getattr(distribution, statistic)()
+    #     return statistic
+    return distribution_statistic
+
+
+def get_statistic_and_interval_probability(statistic, lower, upper):
+    """Returns a function `statistic_and_interval_probability` that takes
+    a frozen `scipy.stats.rv_continuous` object representing a probability
+    distribution as input, and returns a length-2 tuple containing the
+    specified statistic of the distribution and the probability that a
+    random variable from the distribution lies in the interval [lower, upper].
+
+    statistic: str
+        The name of a method on a scipy.stats rv_continuous object that
+        returns a single real number. Namely, one of 'mean', 'median',
+        'var', 'std', 'skew', 'kurtosis', or 'entropy'.
     lower: float
         The lower bound of the interval.
     upper: float
         The upper bound of the interval.
 
+    returns: function
+        The returned function takes a
     returns: tuple of length 2
         Returns the tuple (statistic, probability), where statistic is the
         requested statistic from the distribution, and probability is
         P(lower < X < upper), where X~distribution.
     """
+    distribution_statistic = get_distribution_statistic(statistic)
     def statistic_and_interval_probability(distribution):
-        statistic = getattr(distribution, statistic)()
+        statistic = distribution_statistic(distribution)
         prob = distribution.cdf(upper) - distribution.cdf(lower)
         return statistic, prob
     return statistic_and_interval_probability
@@ -63,8 +91,9 @@ def get_statistic_and_interval(statistic, desired_probability=0.95):
         p1 and p2, where p1 = (1 - desired_probability)/2, and
         p2 = desired_probability + p1.
     """
+    distribution_statistic = get_distribution_statistic(statistic)
     def statistic_and_interval(distribution):
-        statistic = getattr(distribution, statistic)()
+        statistic = distribution_statistic(distribution)
         interval = distribution.interval(desired_prob)
         return statistic, *interval
     return statistic_and_interval
