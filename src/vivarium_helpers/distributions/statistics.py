@@ -1,19 +1,28 @@
-def mean_and_variance(distribution):
+def get_mean_and_variance(distribution):
     """Return the mean and variance of a scipy.stats distribution."""
     return distribution.stats('mv')
 
-def get_stats(moments='mv'):
-    """Return a subset of the first four standardized moments of
-    a scipy.stats distribution:
-    Mean(‘m’), variance(‘v’), skew(‘s’), and/or kurtosis(‘k’)
-    Note that the kurtosis returned by scipy is the _excess_ kurtosis,
-    i.e. the standardized fourth moment minus 3.
+def get_mean_and_median(distribution):
+    """Return the mean and median of a scipy.stats distribution."""
+    return distribution.mean(), distribution.median()
+
+def special_moments(moments='mv'):
+    """Returns a function that takes as input a frozen scipy.stats.rv_continuous
+    distribution and returns a subset of the first four commonly used moments:
+    mean(‘m’), variance(‘v’), skew(‘s’), and/or kurtosis(‘k’).
+
+    - The mean is the first raw moment.
+    - The variance is the second central moment.
+    - The skew is the third standardized moment.
+    - The kurtosis returned by scipy is the excess kurtosis,
+      i.e. the standardized fourth cumulant, which is equal to the
+      fourth standardized moment minus 3.
     """
-    def stats(distribution):
+    def get_special_moments(distribution):
         return distribution.stats(moments)
     return stats
 
-def get_distribution_statistic(statistic):
+def distribution_statistic(statistic_name):
     """Returns a function of a frozen `scipy.stats.rv_continuous` object
     that returns the specified statistic of the distribution.
 
@@ -22,20 +31,20 @@ def get_distribution_statistic(statistic):
         returns a single real number. Namely, one of 'mean', 'median',
         'var', 'std', 'skew', 'kurtosis', or 'entropy'.
     """
-    if statistic in ['skew', 'kurtosis']:
-        distribution_statistic = lambda dist: dist.stats(statistic[0])
+    if statistic_name in ['skew', 'kurtosis']:
+        get_statistic = lambda dist: dist.stats(statistic_name[0])
     else:
-        distribution_statistic = lambda dist: getattr(dist, statistic)()
+        get_statistic = lambda dist: getattr(dist, statistic_name)()
     # def distribution_statistic(distribution):
     #     if statistic in ['skew', 'kurtosis']:
     #         statistic = distribution.stats(statistic[0])
     #     else:
     #         statistic = getattr(distribution, statistic)()
     #     return statistic
-    return distribution_statistic
+    return get_statistic
 
 
-def get_statistic_and_interval_probability(statistic, lower, upper):
+def statistic_and_interval_probability(statistic_name, lower, upper):
     """Returns a function `statistic_and_interval_probability` that takes
     a frozen `scipy.stats.rv_continuous` object representing a probability
     distribution as input, and returns a length-2 tuple containing the
@@ -58,20 +67,20 @@ def get_statistic_and_interval_probability(statistic, lower, upper):
         requested statistic from the distribution, and probability is
         P(lower < X < upper), where X~distribution.
     """
-    distribution_statistic = get_distribution_statistic(statistic)
-    def statistic_and_interval_probability(distribution):
-        statistic = distribution_statistic(distribution)
+    get_statistic = distribution_statistic(statistic_name)
+    def get_statistic_and_interval_probability(distribution):
+        statistic = get_statistic(distribution)
         prob = distribution.cdf(upper) - distribution.cdf(lower)
         return statistic, prob
-    return statistic_and_interval_probability
+    return get_statistic_and_interval_probability
 
-def get_mean_and_interval_probability(lower, upper):
-    return get_statistic_and_interval_probability('mean', lower, upper)
+def mean_and_interval_probability(lower, upper):
+    return statistic_and_interval_probability('mean', lower, upper)
 
-def get_median_and_interval_probability(lower, upper):
-    return get_statistic_and_interval_probability('median', lower, upper)
+def median_and_interval_probability(lower, upper):
+    return statistic_and_interval_probability('median', lower, upper)
 
-def get_statistic_and_interval(statistic, desired_probability=0.95):
+def statistic_and_interval(statistic_name, desired_probability=0.95):
     """Return the specified statistic of the distribution and the central
     confidence interval with the desired probability (confidence),
     i.e., the interval with total area `desired_probability` and equal
@@ -91,9 +100,15 @@ def get_statistic_and_interval(statistic, desired_probability=0.95):
         p1 and p2, where p1 = (1 - desired_probability)/2, and
         p2 = desired_probability + p1.
     """
-    distribution_statistic = get_distribution_statistic(statistic)
-    def statistic_and_interval(distribution):
-        statistic = distribution_statistic(distribution)
+    get_statistic = distribution_statistic(statistic_name)
+    def get_statistic_and_interval(distribution):
+        statistic = get_statistic(distribution)
         interval = distribution.interval(desired_prob)
         return statistic, *interval
-    return statistic_and_interval
+    return get_statistic_and_interval
+
+def quantiles(*quantile_ranks):
+    return
+
+def quantile_ranks(*quantiles):
+    return
