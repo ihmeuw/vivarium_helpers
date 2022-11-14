@@ -2,6 +2,10 @@ def get_mean_and_variance(distribution):
     """Return the mean and variance of a scipy.stats distribution."""
     return distribution.stats('mv')
 
+def get_mean_and_std(distribution):
+    """Return the mean and standard deviation of a scipy.stats distribution."""
+    return distribution.mean(), distribution.std()
+
 def get_mean_and_median(distribution):
     """Return the mean and median of a scipy.stats distribution."""
     return distribution.mean(), distribution.median()
@@ -10,12 +14,11 @@ def special_moments(moments='mv'):
     """Returns a function that takes as input a frozen scipy.stats.rv_continuous
     distribution and returns a subset of the first four commonly used moments:
     mean(‘m’), variance(‘v’), skew(‘s’), and/or kurtosis(‘k’).
-
     - The mean is the first raw moment.
     - The variance is the second central moment.
     - The skew is the third standardized moment.
     - The kurtosis returned by scipy is the excess kurtosis,
-      i.e. the standardized fourth cumulant, which is equal to the
+      i.e. the normalized fourth cumulant, which is equal to the
       fourth standardized moment minus 3.
     """
     def get_special_moments(distribution):
@@ -97,18 +100,38 @@ def statistic_and_interval(statistic_name, desired_probability=0.95):
     returns: tuple of length 3
         Returns the tuple (statistic, q1, q2), where statistic is the requested
         statistic of the distribution, and (q1, q2) are the quantiles of ranks
-        p1 and p2, where p1 = (1 - desired_probability)/2, and
-        p2 = desired_probability + p1.
+        p1 and p2, where p1 = 0.5 - desired_probability/2, and
+        p2 = 0.5 + desired_probability/2.
     """
     get_statistic = distribution_statistic(statistic_name)
     def get_statistic_and_interval(distribution):
         statistic = get_statistic(distribution)
-        interval = distribution.interval(desired_prob)
+        interval = distribution.interval(desired_probability)
         return statistic, *interval
     return get_statistic_and_interval
 
 def quantiles(*quantile_ranks):
-    return
+    def get_quantiles(distribution):
+        return distribution.ppf(quantile_ranks)
+    return get_quantiles
 
 def quantile_ranks(*quantiles):
-    return
+    def get_quantile_ranks(distribution):
+        return distribution.cdf(quantiles)
+    return get_quantile_ranks
+
+def statistic_and_quantiles(statistic_name, *quantile_ranks):
+    get_statistic = distribution_statistic(statistic_name)
+    def get_statistic_and_quantiles(distribution):
+        statistic = get_statistic(distribution)
+        quantiles = distribution.ppf(quantile_ranks)
+        return statistic, *quantiles
+    return get_statistic_and_quantiles
+
+def statistic_and_quantile_ranks(statistic_name, *quantiles):
+    get_statistic = distribution_statistic(statistic_name)
+    def get_statistic_and_quantile_ranks(distribution):
+        statistic = get_statistic(distribution)
+        quantile_ranks = distribution.cdf(quantiles)
+        return statistic, *quantile_ranks
+    return get_statistic_and_quantile_ranks
