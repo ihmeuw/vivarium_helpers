@@ -25,7 +25,7 @@ def special_moments(moments='mv'):
         return distribution.stats(moments)
     return stats
 
-def distribution_statistic(statistic_name):
+def statistic(statistic_name):
     """Returns a function of a frozen `scipy.stats.rv_continuous` object
     that returns the specified statistic of the distribution.
 
@@ -34,10 +34,12 @@ def distribution_statistic(statistic_name):
         returns a single real number. Namely, one of 'mean', 'median',
         'var', 'std', 'skew', 'kurtosis', or 'entropy'.
     """
+    # Return tuples to make the return type compatible with outputs
+    # returned by other functions in this module
     if statistic_name in ['skew', 'kurtosis']:
-        get_statistic = lambda dist: dist.stats(statistic_name[0])
+        get_statistic = lambda dist: (dist.stats(statistic_name[0]),)
     else:
-        get_statistic = lambda dist: getattr(dist, statistic_name)()
+        get_statistic = lambda dist: (getattr(dist, statistic_name)(),)
     # def distribution_statistic(distribution):
     #     if statistic in ['skew', 'kurtosis']:
     #         statistic = distribution.stats(statistic[0])
@@ -70,11 +72,11 @@ def statistic_and_interval_probability(statistic_name, lower, upper):
         requested statistic from the distribution, and probability is
         P(lower < X < upper), where X~distribution.
     """
-    get_statistic = distribution_statistic(statistic_name)
+    get_statistic = statistic(statistic_name)
     def get_statistic_and_interval_probability(distribution):
-        statistic = get_statistic(distribution)
+        stat = get_statistic(distribution)
         prob = distribution.cdf(upper) - distribution.cdf(lower)
-        return statistic, prob
+        return stat, prob
     return get_statistic_and_interval_probability
 
 def mean_and_interval_probability(lower, upper):
@@ -83,7 +85,7 @@ def mean_and_interval_probability(lower, upper):
 def median_and_interval_probability(lower, upper):
     return statistic_and_interval_probability('median', lower, upper)
 
-def statistic_and_interval(statistic_name, desired_probability=0.95):
+def statistic_and_central_interval(statistic_name, desired_probability=0.95):
     """Return the specified statistic of the distribution and the central
     confidence interval with the desired probability (confidence),
     i.e., the interval with total area `desired_probability` and equal
@@ -103,12 +105,12 @@ def statistic_and_interval(statistic_name, desired_probability=0.95):
         p1 and p2, where p1 = 0.5 - desired_probability/2, and
         p2 = 0.5 + desired_probability/2.
     """
-    get_statistic = distribution_statistic(statistic_name)
-    def get_statistic_and_interval(distribution):
-        statistic = get_statistic(distribution)
+    get_statistic = statistic(statistic_name)
+    def get_statistic_and_central_interval(distribution):
+        stat = get_statistic(distribution)
         interval = distribution.interval(desired_probability)
-        return statistic, *interval
-    return get_statistic_and_interval
+        return stat, *interval
+    return get_statistic_and_central_interval
 
 def quantiles(*quantile_ranks):
     def get_quantiles(distribution):
@@ -135,3 +137,26 @@ def statistic_and_quantile_ranks(statistic_name, *quantiles):
         quantile_ranks = distribution.cdf(quantiles)
         return statistic, *quantile_ranks
     return get_statistic_and_quantile_ranks
+
+def moments(*orders):
+    def get_moments(distribution):
+        moments = [distribution.moment(order) for order in orders]
+        return moments
+    return get_moments
+
+def central_interval(confidence):
+    def get_central_interval(distribution):
+        return distribution.interval(confidence)
+    return get_central_interval
+
+def interval_probability(lower, upper):
+    def get_interval_probability(distribution):
+        prob = distribution.cdf(upper) - distribution.cdf(lower)
+        return prob
+    return get_interval_probability
+
+def combine(*functionals):
+    def get_values(distribution):
+        list_of_iterables = [functional(distribution) for functional in functionals]
+        return [value for values in list_of_iterables for value in values]
+    return get_values
