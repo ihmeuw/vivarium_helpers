@@ -159,7 +159,7 @@ def interval_probability(lower, upper):
         return prob
     return get_interval_probability
 
-def combine(*functionals):
+def concatenate(*functionals):
     def get_values(distribution):
         list_of_iterables = [
             functional(distribution) for functional in functionals
@@ -168,7 +168,7 @@ def combine(*functionals):
     return get_values
 
 def statistic_and_interval_probability(statistic_name, lower, upper):
-    return combine(
+    return concatenate(
         statistic(statistic_name),
         interval_probability(lower, upper),
     )
@@ -180,10 +180,10 @@ def median_and_interval_probability(lower, upper):
     return statistic_and_interval_probability('median', lower, upper)
 
 def statistic_and_central_interval(statistic_name, probability=0.95):
-    return combine(statistic(statistic_name), central_interval(probability))
+    return concatenate(statistic(statistic_name), central_interval(probability))
 
 def statistic_and_quantiles(statistic_name, *quantile_ranks):
-    return combine(statistic(statistic_name), quantiles(*quantile_ranks))
+    return concatenate(statistic(statistic_name), quantiles(*quantile_ranks))
 
 def statistic_and_quantile_ranks(statistic_name, *quantiles):
-    return combine(statistic(statistic_name), quantile_ranks(*quantiles))
+    return concatenate(statistic(statistic_name), quantile_ranks(*quantiles))
