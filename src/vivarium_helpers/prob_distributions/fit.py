@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import stats
 from scipy.optimize import minimize
+from vivarium_helpers.prob_distributions.descriptive import get_mean_and_variance
 
 def l1_loss(x,y):
     x,y = map(np.asarray, [x,y])
@@ -53,7 +54,25 @@ def method_of_moments(
     loss = quadratic_loss,
     **kwargs,
 ):
-    mean, variance = moments
+    return fit(
+        distribution,
+        moments,
+        get_mean_and_variance,
+        initial_parameters,
+        loss=loss,
+        **kwargs,
+    )
+
+def fit(
+    distribution,
+    data,
+    descriptive_stats_func,
+    initial_parameters,
+    loss = quadratic_loss,
+    **kwargs,
+):
+    # mean, variance = moments
+
     # args stores extra fixed arguments to pass to distribution(),
     # as defined in documentation for `minimize`, except that
     # we use "arglists" to allow passing keyword arguments as well as
@@ -83,8 +102,10 @@ def method_of_moments(
 
     def objective_function(parameters):
         dist = dist_from_parameters(parameters)
-        mean_var = dist.stats()
-        return loss(mean_var, [mean,variance])
+        computed_statistics = descriptive_stats_func(dist)
+        return loss(computed_statistics, data)
+        # mean_var = dist.stats()
+        # return loss(mean_var, [mean,variance])
 
     result = minimize(objective_function, initial_parameters, **kwargs)
     best_params = result.x
