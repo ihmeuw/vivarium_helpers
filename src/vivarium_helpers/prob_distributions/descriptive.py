@@ -72,7 +72,7 @@ def statistic(statistic_name):
     get_statistic.__name__ = f"get_{statistic_name}"
     return get_statistic
 
-
+# Original, old version -- keep for now, until different versions are tested
 def statistic_and_interval_probability1(statistic_name, lower, upper):
     """Returns a function `statistic_and_interval_probability` that takes
     a frozen `scipy.stats.rv_continuous` object representing a probability
@@ -103,6 +103,7 @@ def statistic_and_interval_probability1(statistic_name, lower, upper):
         return stat, prob
     return get_statistic_and_interval_probability
 
+# Original, old version -- keep for now, until different versions are tested
 def statistic_and_central_interval1(statistic_name, desired_probability=0.95):
     """Return the specified statistic of the distribution and the central
     confidence interval with the desired probability (confidence),
@@ -140,6 +141,7 @@ def quantile_ranks(*quantiles):
         return distribution.cdf(quantiles)
     return get_quantile_ranks
 
+# Original, old version -- keep for now, until different versions are tested
 def statistic_and_quantiles1(statistic_name, *quantile_ranks):
     get_statistic = distribution_statistic(statistic_name)
     def get_statistic_and_quantiles(distribution):
@@ -148,6 +150,7 @@ def statistic_and_quantiles1(statistic_name, *quantile_ranks):
         return statistic, *quantiles
     return get_statistic_and_quantiles
 
+# Original, old version -- keep for now, until different versions are tested
 def statistic_and_quantile_ranks1(statistic_name, *quantiles):
     get_statistic = distribution_statistic(statistic_name)
     def get_statistic_and_quantile_ranks(distribution):
