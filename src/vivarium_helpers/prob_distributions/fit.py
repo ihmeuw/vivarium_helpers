@@ -14,19 +14,24 @@ quadratic_loss = l2_loss
 
 def weighted_l2_loss(x,y,weights):
     x,y,weights = map(np.asarray, [x,y,weights])
-    return ((weights*(x-y))**2).sum()
+    return (weights*((x-y)**2)).sum()
 
-def l2_relative_error_loss(x,y):
-    """Compute the L2 norm of the relative errors between x and y,
-    where x is the "measured" value and y is the "true" value
-    appearing in the denominator for normalization.
-    y is replaced by the value max(|y|, 1e-8) before normalization
-    in order to avoid division by 0.
+def l2_relative_error_loss(measured_val, true_val):
+
+    """Compute the L2 norm of the relative errors between measured_val and
+    true_val, where true_val used for normalization in the denominator. true_val
+    is replaced by the value max(|true_val|, 1e-8) before normalization in order
+    to avoid division by 0.
     Idea taken from:
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.rv_continuous.fit.html#scipy.stats.rv_continuous.fit
+
+    My hypothesis (untested so far) is that this loss function may perform
+    better than the un-normalized l2 loss in cases where the components of true_val are
+    of drastically different magnitudes.
     """
-    x,y = map(np.asarray, [x,y])
-    return (((x - y) / np.maximum(np.abs(y), 1e-8))**2).sum()
+    measured_val,true_val = map(np.asarray, [measured_val,true_val])
+    return (((measured_val - true_val) /
+        np.maximum(np.abs(true_val), 1e-8))**2).sum()
 
 def arglist(*args, **kwargs):
     return (*args, kwargs)
