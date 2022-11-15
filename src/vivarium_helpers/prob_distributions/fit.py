@@ -18,11 +18,11 @@ def weighted_l2_loss(x,y,weights):
     return (weights*((x-y)**2)).sum()
 
 def l2_relative_error_loss(measured_val, true_val):
-
     """Compute the L2 norm of the relative errors between measured_val and
-    true_val, where true_val used for normalization in the denominator. true_val
-    is replaced by the value max(|true_val|, 1e-8) before normalization in order
-    to avoid division by 0.
+    true_val, where true_val is used for normalization in the denominator.
+    true_val is replaced by the value max(|true_val|, 1e-8) before normalization
+    in order to avoid division by 0.
+
     Idea taken from:
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.rv_continuous.fit.html#scipy.stats.rv_continuous.fit
 
