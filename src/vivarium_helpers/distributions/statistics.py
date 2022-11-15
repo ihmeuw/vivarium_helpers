@@ -42,18 +42,25 @@ def moments(*orders):
     return get_moments
 
 def statistic(statistic_name):
-    """Returns a function of a frozen `scipy.stats.rv_continuous` object
-    that returns the specified statistic of the distribution.
+    """Returns a function of a scipy.stats.rv_continuous_frozen object that
+    returns the specified descriptive statistic of the probability distribution
+    it represents.
 
-    statistic: str
-        The name of a method on a scipy.stats rv_continuous object that
-        returns a single real number. Namely, one of 'mean', 'median',
-        'var', 'std', 'skew', 'kurtosis', or 'entropy'.
+    statistic_name: str
+        A descrpitive statistic (a single real number) that is either the name
+        of a method of scipy.stats.rv_continuous_frozen that returns the
+        statistic, or else can be easily computed from one of the standard
+        methods. One of 'mean', 'median', 'var', 'std', 'skew', 'kurtosis',
+        'entropy', 'support_min', or 'support_max'.
     """
     # Return tuples to make the return type compatible with outputs
     # returned by other functions in this module
     if statistic_name in ['skew', 'kurtosis']:
         get_statistic = lambda dist: (dist.stats(statistic_name[0]),)
+    elif statistic_name == 'support_min':
+        get_statistic = lambda dist: (dist.a,)
+    elif statistic_name == 'support_max':
+        get_statistic = lambda dist: (dist.b,)
     else:
         get_statistic = lambda dist: (getattr(dist, statistic_name)(),)
     # def distribution_statistic(distribution):
@@ -62,6 +69,7 @@ def statistic(statistic_name):
     #     else:
     #         statistic = getattr(distribution, statistic)()
     #     return statistic
+    get_statistic.__name__ = f"get_{statistic_name}"
     return get_statistic
 
 
