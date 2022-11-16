@@ -14,15 +14,15 @@ def beta_dist_from_mean_and_variance(mean, variance):
     # For derivations of these formulas, see:
     # https://en.wikipedia.org/wiki/Beta_distribution#Mean_and_variance
     relative_variance = mean*(1-mean)/variance - 1
-    a = mean*relative_variance
-    b = (1-mean)*relative_variance
-    return stats.beta(a,b) # a,b can be recovered from dist.args
+    alpha = mean*relative_variance
+    beta = (1-mean)*relative_variance
+    return stats.beta(a=alpha,b=beta) # a,b can be recovered from dist.args
 
 def gamma_dist_from_mean_and_variance(mean, variance):
     """Method of moments for gamma distribution."""
-    a = mean**2 / variance
+    alpha = mean**2 / variance
     scale = variance / mean
-    return scipy.stats.gamma(a, scale=scale)
+    return scipy.stats.gamma(a=alpha, scale=scale)
 
 def lognorm_dist_from_mean_and_variance(mean, variance):
     """Method of moments for lognormal distribution.
@@ -42,9 +42,9 @@ def lognorm_dist_from_mean_and_median(mean, median):
 
 def normal_dist_from_mean_and_variance(mean, variance):
     """Method of moments for normal distribution."""
-    return stats.norm(mean, np.sqrt(variance))
+    return stats.norm(loc=mean, scale=np.sqrt(variance))
 
-def truncnorm_from_support(support_min, support_max, loc=0, scale=1):
+def truncnorm_dist_from_support(support_min, support_max, loc=0, scale=1):
     """Returns a truncatated normal distribution (as a frozen
     scipy.stats.truncnorm) with the specified support, location,
     and scale.
