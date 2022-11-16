@@ -16,6 +16,10 @@ def get_mean_and_median(distribution):
     """Return the mean and median of a scipy.stats distribution."""
     return distribution.mean(), distribution.median()
 
+def get_support(distribution):
+    """Return the support of a scipy.stats distribution."""
+    return distribution.support()
+
 def special_moments(moments='mv'):
     """Returns a function that takes as input a frozen scipy.stats.rv_continuous
     distribution and returns a subset of the first four commonly used moments
@@ -58,9 +62,9 @@ def statistic(statistic_name):
     if statistic_name in ['skew', 'kurtosis']:
         get_statistic = lambda dist: (dist.stats(statistic_name[0]),)
     elif statistic_name == 'support_min':
-        get_statistic = lambda dist: (dist.a,)
+        get_statistic = lambda dist: (dist.support()[0],)
     elif statistic_name == 'support_max':
-        get_statistic = lambda dist: (dist.b,)
+        get_statistic = lambda dist: (dist.support()[1],)
     else:
         get_statistic = lambda dist: (getattr(dist, statistic_name)(),)
     # def distribution_statistic(distribution):
