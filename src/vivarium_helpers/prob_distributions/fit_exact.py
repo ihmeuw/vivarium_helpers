@@ -43,3 +43,20 @@ def lognorm_dist_from_mean_and_median(mean, median):
 def normal_dist_from_mean_and_variance(mean, variance):
     """Method of moments for normal distribution."""
     return stats.norm(mean, np.sqrt(variance))
+
+def truncnorm_from_support(support_min, support_max, loc=0, scale=1):
+    """Returns a truncatated normal distribution (as a frozen
+    scipy.stats.truncnorm) with the specified support, location,
+    and scale.
+
+    This is a convenience function to convert the support of the desired
+    distribution into the correct shape parameters for truncnorm(), which are,
+    less intuitively, the endpoints of the support of the standardized
+    distribution with loc=0 an scale=1.
+
+    See scipy.stats.truncnorm documentation at
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.truncnorm.html
+    """
+    a = (support_min - loc) / scale
+    b = (support_max - loc) / scale
+    return stats.truncnorm(a=a, b=b, loc=loc, scale=scale)
