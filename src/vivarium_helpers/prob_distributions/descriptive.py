@@ -51,15 +51,16 @@ def statistic(statistic_name):
     it represents.
 
     statistic_name: str
+
         A descrpitive statistic (a single real number) that is either the name
         of a method of scipy.stats.rv_continuous_frozen that returns the
         statistic, or else can be easily computed from one of the standard
-        methods. One of 'mean', 'median', 'var', 'std', 'skew', 'kurtosis',
-        'entropy', 'support_min', or 'support_max'.
+        methods. One of 'mean', 'median', 'var' or 'variance', 'std', 'skew',
+        'kurtosis', 'entropy', 'support_min', or 'support_max'.
     """
     # Return tuples to make the return type compatible with outputs
     # returned by other functions in this module
-    if statistic_name in ['skew', 'kurtosis']:
+    if statistic_name in ['variance', 'skew', 'kurtosis']:
         get_statistic = lambda dist: (dist.stats(statistic_name[0]),)
     elif statistic_name == 'support_min':
         get_statistic = lambda dist: (dist.support()[0],)
