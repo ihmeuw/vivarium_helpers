@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import stats
 from scipy.optimize import minimize
-from vivarium_helpers.prob_distributions.descriptive import get_mean_and_variance
+from vivarium_helpers.prob_distributions import descriptive_stats
 
 def l1_loss(x,y):
     x,y = map(np.asarray, [x,y])
@@ -48,20 +48,51 @@ def _parse_arglist(arg_list):
     return args, kwargs
 
 def method_of_moments(
-    moments,
     distribution,
+    moments,
     initial_parameters,
+    raw = False,
     loss = quadratic_loss,
     **kwargs,
 ):
+    if isinstance(moments, dict):
+        orders = moments.keys()
+        moments = moments.values()
+    else:
+        orders = range(1,1+len(moments))
+
+    if raw:
+        moment_func = descriptive_stats.moments(*orders)
+    else:
+        if len(moments) > 4:
+            raise ValueError(f"More than 4 non-raw moments passed: {moments=}")
+        # def convert(o):
+        #     mapping = dict(enumerate('mvsk', start=1))
+        #     if o not in 'mvsk'.split():
+        #         o = mapping[o]
+        #     return o
+        order_to_abrv = dict(enumerate('mvsk', start=1))
+        def convert_to_abrv(o):
+            return order_to_abrv[o] if o in order_to_abrv else o
+        orders = ''.join(map(convert_to_abrv, orders))
+        moment_func = descriptive_stats.special_moments(orders)
+
     return fit(
         distribution,
         moments,
-        get_mean_and_variance,
+        moment_func,
         initial_parameters,
         loss=loss,
         **kwargs,
     )
+    # return fit(
+    #     distribution,
+    #     moments,
+    #     descriptive_stats.get_mean_and_variance,
+    #     initial_parameters,
+    #     loss=loss,
+    #     **kwargs,
+    # )
 
 def fit(
     distribution,
