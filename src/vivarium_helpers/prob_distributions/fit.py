@@ -47,53 +47,6 @@ def _parse_arglist(arg_list):
     *args, kwargs = arg_list
     return args, kwargs
 
-def method_of_moments(
-    distribution,
-    moments,
-    initial_parameters,
-    raw = False,
-    loss = quadratic_loss,
-    **kwargs,
-):
-    if isinstance(moments, dict):
-        orders = moments.keys()
-        moments = moments.values()
-    else:
-        orders = range(1,1+len(moments))
-
-    if raw:
-        moment_func = descriptive_stats.moments(*orders)
-    else:
-        if len(moments) > 4:
-            raise ValueError(f"More than 4 non-raw moments passed: {moments=}")
-        # def convert(o):
-        #     mapping = dict(enumerate('mvsk', start=1))
-        #     if o not in 'mvsk'.split():
-        #         o = mapping[o]
-        #     return o
-        order_to_abrv = dict(enumerate('mvsk', start=1))
-        def convert_to_abrv(o):
-            return order_to_abrv[o] if o in order_to_abrv else o
-        orders = ''.join(map(convert_to_abrv, orders))
-        moment_func = descriptive_stats.special_moments(orders)
-
-    return fit(
-        distribution,
-        moments,
-        moment_func,
-        initial_parameters,
-        loss=loss,
-        **kwargs,
-    )
-    # return fit(
-    #     distribution,
-    #     moments,
-    #     descriptive_stats.get_mean_and_variance,
-    #     initial_parameters,
-    #     loss=loss,
-    #     **kwargs,
-    # )
-
 def fit(
     distribution,
     data,
@@ -102,8 +55,6 @@ def fit(
     loss = quadratic_loss,
     **kwargs,
 ):
-    # mean, variance = moments
-
     # args stores extra fixed arguments to pass to distribution(),
     # as defined in documentation for `minimize`, except that
     # we use "arglists" to allow passing keyword arguments as well as
@@ -112,7 +63,6 @@ def fit(
     fixed_args, fixed_kwargs = _parse_arglist(fixed_arglist)
 
     # # Extract positional and keyword parameters from parameter list
-    # *pos_params, kwd_params = initial_parameters
     pos_params, kwd_params = _parse_arglist(initial_parameters)
     print(fixed_kwargs, kwd_params)
 
@@ -135,9 +85,41 @@ def fit(
         dist = dist_from_parameters(parameters)
         computed_statistics = descriptive_stats_func(dist)
         return loss(computed_statistics, data)
-        # mean_var = dist.stats()
-        # return loss(mean_var, [mean,variance])
 
     result = minimize(objective_function, initial_parameters, **kwargs)
     best_params = result.x
     return dist_from_parameters(best_params), result
+
+def method_of_moments(
+    distribution,
+    moments,
+    initial_parameters,
+    raw = False, # True: use raw moments. False: use special moments from stats()
+    loss = quadratic_loss,
+    **kwargs,
+):
+    if isinstance(moments, dict):
+        orders = moments.keys()
+        moments = moments.values()
+    else:
+        orders = range(1,1+len(moments))
+
+    if raw:
+        moment_func = descriptive_stats.moments(*orders)
+    else:
+        if len(moments) > 4:
+            raise ValueError(f"More than 4 non-raw moments passed: {moments=}")
+        order_to_abrv = dict(enumerate('mvsk', start=1))
+        def convert_to_abrv(o):
+            return order_to_abrv[o] if o in order_to_abrv else o
+        orders = ''.join(map(convert_to_abrv, orders))
+        moment_func = descriptive_stats.special_moments(orders)
+
+    return fit(
+        distribution,
+        moments,
+        moment_func,
+        initial_parameters,
+        loss=loss,
+        **kwargs,
+    )
