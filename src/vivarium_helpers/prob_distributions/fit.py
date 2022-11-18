@@ -48,7 +48,7 @@ def _parse_arglist(arg_list):
     return args, kwargs
 
 def fit(
-    distribution,
+    dist_family,
     data,
     descriptive_stats_func,
     initial_parameters,
@@ -77,7 +77,7 @@ def fit(
     def dist_from_parameters(parameters):
         pos_params = parameters[:num_positional]
         kwd_params = dict(zip(param_keys, parameters[num_positional:]))
-        return distribution(
+        return dist_family(
             *pos_params, *fixed_args, **kwd_params, **fixed_kwargs
         )
 
@@ -91,11 +91,11 @@ def fit(
     return dist_from_parameters(best_params), result
 
 def method_of_moments(
-    distribution,
+    dist_family,
     moments,
     initial_parameters,
     raw = False, # True: use raw moments. False: use special moments from stats()
-    loss = quadratic_loss,
+    loss = quadratic_loss, # Change default to relative error l2 loss
     **kwargs,
 ):
     if isinstance(moments, dict):
@@ -116,7 +116,7 @@ def method_of_moments(
         moment_func = descriptive_stats.special_moments(orders)
 
     return fit(
-        distribution,
+        dist_family,
         moments,
         moment_func,
         initial_parameters,
