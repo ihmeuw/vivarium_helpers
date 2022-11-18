@@ -34,12 +34,13 @@ def special_moments(moments='mv'):
     """
     def get_special_moments(distribution):
         return distribution.stats(moments)
-    return stats
+    return get_special_moments
 
 def moments(*orders):
     """Returns a function that returns a distribution's raw moments
     of the specified orders.
     """
+    print(orders)
     def get_moments(distribution):
         moments = [distribution.moment(order) for order in orders]
         return moments
