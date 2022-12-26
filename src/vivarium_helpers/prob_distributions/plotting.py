@@ -1,22 +1,29 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_pdf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+def plot_rv_func(dist, funcname, lower, upper, numpoints, quantile_bounds, ax=None, **kwargs):
     """Plot the pdf of a scipy.stats distribution dist.
 
     (lower, upper, numpoints) are the arguments (start, stop, num) of numpy.linspace.
     quantile_bounds is a boolean (default True) indicating whether lower and upper should be
-    interpreted as quantiles. If False, they are interpreted as x values in the
-    support of the distribution.
+    interpreted as quantile ranks (i.e. probabilities).
+    If False, they are interpreted as values in the support of the distribution.
     ax is the matplotlib Axis object to plot on, defaults to matplotlib.pyplot.gca().
     kwargs is passed to matplotlib.pyplot.plot.
     """
     if ax is None:
         ax = plt.gca()
 
-    # If lower and upper are interpreted as quantiles, find the correspondng x values
-    if quantile_bounds:
+    # If lower and upper are interpreted as quantile ranks,
+    # and f is NOT the quantile function (ppf) or inverse survival function,
+    # find the correspondng quantiles for the x values.
+    if quantile_bounds and funcname not in ['ppf', 'isf']:
         lower, upper = map(dist.ppf, [lower, upper])
+    # If f is the quantile function (ppf) or inverse survival function,
+    # and lower and upper are quantiles instead of quantile ranks,
+    # compute the corresponding quantile ranks for our x values.
+    elif funcname in ['ppf', 'isf'] and not quantile_bounds:
+        lower, upper = map(dist.cdf, [lower, upper])
     x = np.linspace(lower, upper, numpoints)
 
     # Set a few default keyword arguments for .plot() if not already set
@@ -25,5 +32,30 @@ def plot_pdf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True
     if all(key not in kwargs for key in ['linewidth', 'lw']):
         kwargs['linewidth'] = 2
 
-    ax.plot(x, dist.pdf(x), **kwargs)
+    func = getattr(dist, funcname)
+    ax.plot(x, func(x), **kwargs)
     return ax
+
+def plot_pdf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+    return plot_rv_func(dist, 'pdf', lower, upper, numpoints, quantile_bounds, ax, **kwargs)
+
+def plot_cdf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+    return plot_rv_func(dist, 'cdf', lower, upper, numpoints, quantile_bounds, ax, **kwargs)
+
+def plot_sf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+    return plot_rv_func(dist, 'sf', lower, upper, numpoints, quantile_bounds, ax, **kwargs)
+
+def plot_logpdf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+    return plot_rv_func(dist, 'logpdf', lower, upper, numpoints, quantile_bounds, ax, **kwargs)
+
+def plot_logcdf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+    return plot_rv_func(dist, 'logcdf', lower, upper, numpoints, quantile_bounds, ax, **kwargs)
+
+def plot_logsf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+    return plot_rv_func(dist, 'logsf', lower, upper, numpoints, quantile_bounds, ax, **kwargs)
+
+def plot_ppf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+    return plot_rv_func(dist, 'ppf', lower, upper, numpoints, quantile_bounds, ax, **kwargs)
+
+def plot_isf(dist, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
+    return plot_rv_func(dist, 'isf', lower, upper, numpoints, quantile_bounds, ax, **kwargs)
