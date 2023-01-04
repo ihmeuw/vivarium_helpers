@@ -2,14 +2,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def plot_rv_func(dist, funcname, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
-    """Plot the pdf of a scipy.stats distribution dist.
+    """Plot a built-in function of a scipy.stats.rv_continuous_frozen distribution dist.
 
+    funcname can be one of: 'pdf', 'cdf', 'sf', 'logpdf', 'logcdf', 'logsf'.
     (lower, upper, numpoints) are the arguments (start, stop, num) of numpy.linspace.
     quantile_bounds is a boolean (default True) indicating whether lower and upper should be
     interpreted as quantile ranks (i.e. probabilities).
     If False, they are interpreted as values in the support of the distribution.
     ax is the matplotlib Axis object to plot on, defaults to matplotlib.pyplot.gca().
-    kwargs is passed to matplotlib.pyplot.plot.
+    kwargs is passed to ax.plot.
     """
     if ax is None:
         ax = plt.gca()
