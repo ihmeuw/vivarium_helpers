@@ -114,7 +114,7 @@ def statistic_and_interval_probability1(statistic_name, lower, upper):
     return get_statistic_and_interval_probability
 
 # Original, old version -- keep for now, until different versions are tested
-def statistic_and_central_interval1(statistic_name, desired_probability=0.95):
+def statistic_and_central_interval1(statistic_name, desired_probability):
     """Return the specified statistic of the distribution and the central
     confidence interval with the desired probability (confidence),
     i.e., the interval with total area `desired_probability` and equal
@@ -200,7 +200,7 @@ def mean_and_interval_probability(lower, upper):
 def median_and_interval_probability(lower, upper):
     return statistic_and_interval_probability('median', lower, upper)
 
-def statistic_and_central_interval(statistic_name, probability=0.95):
+def statistic_and_central_interval(statistic_name, probability):
     return concatenate(statistic(statistic_name), central_interval(probability))
 
 def statistic_and_quantiles(statistic_name, *quantile_ranks):
