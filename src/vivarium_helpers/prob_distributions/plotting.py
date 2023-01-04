@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_rv_func(dist, funcname, lower, upper, numpoints, quantile_bounds, ax=None, **kwargs):
+def plot_rv_func(dist, funcname, lower=0.001, upper=0.999, numpoints=200, quantile_bounds=True, ax=None, **kwargs):
     """Plot the pdf of a scipy.stats distribution dist.
 
     (lower, upper, numpoints) are the arguments (start, stop, num) of numpy.linspace.
