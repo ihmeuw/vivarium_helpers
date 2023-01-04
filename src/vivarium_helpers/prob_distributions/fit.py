@@ -94,8 +94,8 @@ def method_of_moments(
     dist_family,
     moments,
     initial_parameters,
-    raw = False, # True: use raw moments. False: use special moments from stats()
-    loss = quadratic_loss, # Change default to relative error l2 loss
+    fisher = True, # True: use Fisher moments from stats() False: use raw moments from moments().
+    loss = l2_relative_error_loss,
     **kwargs,
 ):
     if isinstance(moments, dict):
@@ -104,16 +104,16 @@ def method_of_moments(
     else:
         orders = range(1,1+len(moments))
 
-    if raw:
-        moment_func = descriptive_stats.moments(*orders)
-    else:
+    if fisher:
         if len(moments) > 4:
             raise ValueError(f"More than 4 non-raw moments passed: {moments=}")
         order_to_abrv = dict(enumerate('mvsk', start=1))
         def convert_to_abrv(o):
             return order_to_abrv[o] if o in order_to_abrv else o
         orders = ''.join(map(convert_to_abrv, orders))
-        moment_func = descriptive_stats.special_moments(orders)
+        moment_func = descriptive_stats.fisher_moments(orders)
+    else:
+        moment_func = descriptive_stats.raw_moments(*orders)
 
     return fit(
         dist_family,
