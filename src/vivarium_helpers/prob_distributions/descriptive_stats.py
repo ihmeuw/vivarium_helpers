@@ -20,31 +20,35 @@ def get_support(distribution):
     """Return the support of a scipy.stats distribution."""
     return distribution.support()
 
-def special_moments(moments='mv'):
+def fisher_moments(moments='mv'):
     """Returns a function that takes as input a frozen scipy.stats.rv_continuous
     distribution and returns a subset of the first four commonly used moments
-    computed by the scipy.stats.rv_continuous.stats() function:
+    computed by the scipy.stats.rv_continuous.stats() function.
     mean(‘m’), variance(‘v’), skew(‘s’), and/or kurtosis(‘k’).
+    Skew and kurtosis use Fisher's definitions as indicated in
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.rv_continuous.stats.html
+    The moments are defined as follows:
     - The mean is the first raw moment.
     - The variance is the second central moment.
     - The skew is the third standardized moment.
     - The kurtosis returned by scipy is the excess kurtosis,
       i.e. the normalized fourth cumulant, which is equal to the
       fourth standardized moment minus 3.
+    The moments parameter defaults to 'mv', the same as the stats() function.
     """
     def get_special_moments(distribution):
         return distribution.stats(moments)
     return get_special_moments
 
-def moments(*orders):
+def raw_moments(*orders):
     """Returns a function that returns a distribution's raw moments
     of the specified orders.
     """
     print(orders)
-    def get_moments(distribution):
+    def get_raw_moments(distribution):
         moments = [distribution.moment(order) for order in orders]
         return moments
-    return get_moments
+    return get_raw_moments
 
 def statistic(statistic_name):
     """Returns a function of a scipy.stats.rv_continuous_frozen object that
@@ -110,7 +114,7 @@ def statistic_and_interval_probability1(statistic_name, lower, upper):
     return get_statistic_and_interval_probability
 
 # Original, old version -- keep for now, until different versions are tested
-def statistic_and_central_interval1(statistic_name, desired_probability=0.95):
+def statistic_and_central_interval1(statistic_name, desired_probability):
     """Return the specified statistic of the distribution and the central
     confidence interval with the desired probability (confidence),
     i.e., the interval with total area `desired_probability` and equal
@@ -196,7 +200,7 @@ def mean_and_interval_probability(lower, upper):
 def median_and_interval_probability(lower, upper):
     return statistic_and_interval_probability('median', lower, upper)
 
-def statistic_and_central_interval(statistic_name, probability=0.95):
+def statistic_and_central_interval(statistic_name, probability):
     return concatenate(statistic(statistic_name), central_interval(probability))
 
 def statistic_and_quantiles(statistic_name, *quantile_ranks):
