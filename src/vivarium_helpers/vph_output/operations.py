@@ -115,7 +115,16 @@ class VPHOperator:
             index_cols = [*include, *self.index_cols]
         return df.set_index(index_cols)[value_cols]
 
-    def marginalize(self, df:pd.DataFrame, marginalized_cols, value_cols=None, reset_index=True)->pd.DataFrame:
+    def marginalize(
+        self,
+        df:pd.DataFrame,
+        marginalized_cols,
+        value_cols=None,
+        reset_index=True,
+        func='sum',
+        args=(), # Positional args to pass to func in DataFrameGroupBy.agg
+        **kwargs, # Keywords to pass to DataFrameGroupBy.agg
+    )->pd.DataFrame:
         """Sum the values of a dataframe over the specified columns to marginalize out.
 
         https://en.wikipedia.org/wiki/Marginal_distribution
@@ -142,13 +151,16 @@ class VPHOperator:
         value_cols: single column label, list of column labels, or pd.Index object
             The column(s) in the dataframe that contain the values to sum
 
-        reset_index: bool
-            Whether to reset the dataframe's index after calling groupby().sum()
+        reset_index: bool, default True
+            Whether to reset the dataframe's index after calling groupby().agg()
+
+        func : function, str, list, dict or None, default 'sum'
+            The function argument to pass to groupby(...).agg()
 
         Returns
         ------------
         summed_data: DataFrame
-            DataFrame with the summed values, whose columns are the same as those in df except without `marginalized_cols`,
+            DataFrame with the aggregated values, whose columns are the same as those in df except without `marginalized_cols`,
             which have been aggregated over.
             If reset_index == False, all the resulting columns will be placed in the DataFrame's index except for `value_cols`.
         """
@@ -156,11 +168,17 @@ class VPHOperator:
             value_cols = self.value_col
         marginalized_cols = _ensure_iterable(marginalized_cols)
         value_cols = _ensure_iterable(value_cols)
-        # Move Index levels into columns to enable passing index level names as well as column names to marginalize
+        # Move Index levels into columns to enable passing index
+        # level names as well as column names to marginalize
         df = _ensure_columns_not_levels(df, marginalized_cols)
-        index_cols = df.columns.difference([*marginalized_cols, *value_cols]).to_list() # must convert to list for groupby
-        summed_data = df.groupby(index_cols, observed=True)[value_cols].sum() # observed=True needed for Categorical data
-        return summed_data.reset_index() if reset_index else summed_data
+        index_cols = df.columns.difference(
+            # must convert Index to list for groupby to work properly
+            [*marginalized_cols, *value_cols]).to_list()
+        aggregated_data = df.groupby(
+            # observed=True needed for Categorical data
+            index_cols, as_index=~reset_index, observed=True
+        )[value_cols].agg(func, *args, **kwargs)
+        return aggregated_data
 
     def stratify(self, df: pd.DataFrame, strata, value_cols=None, reset_index=True)->pd.DataFrame:
         """Sum the values of the dataframe so that the reult is stratified by the specified strata.
