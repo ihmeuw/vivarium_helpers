@@ -8,63 +8,19 @@ MEASURE_COLUMN = 'measure'
 
 INDEX_COLUMNS = [DRAW_COLUMN, SCENARIO_COLUMN]
 
-def set_global_index_columns(index_columns:list)->None:
-    """
-    Set INDEX_COLUMNS to a custom list of columns for the Vivarium model output.
-    For example, if tables for different locations have been concatenated with
-    a new column called 'location', then use the following to get the correct
-    behavior for the functions in this module:
-    
-    set_global_index_columns(['location']+lsff_output_processing.INDEX_COLUMNS)
-    """
-    global INDEX_COLUMNS
-    INDEX_COLUMNS = index_columns
-
-def _ensure_iterable(colnames, df, default=None):
+def _ensure_iterable(colnames, default=None):
     """Wrap a single column name in a list, or return colnames unaltered if it's already a list of column names.
     If colnames is None, its value will first be set to the default value (e.g. pass `default=[]` to default to
     an empty list when colnames is None).
     """
 
-    def method1(colnames, df):
+    def method1(colnames):
         """Method 1 (doesn't depend on df): Assume that if colnames has a type that is in a whitelist of
         allowed iterable types, then it is an iterable of column names, and otherwise it must be a single
         column name.
         """
         if not isinstance(colnames, (list, pd.Index)):
             colnames = [colnames]
-        return colnames
-
-    def method2(colnames, df):
-        """Method 2: Assume that if colnames is hashable it represents a single column name,
-        and otherwise it must be an iterable of column names. (This method doesn't allow tuples of column
-        names since tuples are hashable.)
-        """
-        if isinstance(colnames, collections.Hashable):
-            # This line could still raise an 'unhashable type' TypeError if e.g. colnames is a tuple
-            # that contains an unhashable type
-            if colnames in df: # assume colnames is a single column name in df
-                colnames = [colnames]
-            else: # Assume colnames is supposed to be a single column name
-                raise KeyError(f"Key {colnames} not in the DataFrame")
-        elif not isinstance(colnames, collections.Iterable): # assume colname is an iterable of column names
-            raise ValueError(f"{colnames} must be a single column name in df or an iterable of column names")
-        return colnames
-
-    def method3(colnames, df):
-        """Method 3: Assume that if colnames is a string or is a hashable object that is in the dataframe's columns
-        (e.g. a tuple), then it represents a single column namee. Otherwise it must be an iterable of column names.
-        (This method allows tuples of column names.)
-        """
-        if isinstance(colnames, collections.Hashable):
-            # This line could still raise an 'unhashable type' TypeError if e.g. colnames is a tuple
-            # that contains an unhashable type
-            if colnames in df: # assume colnames is a single column name in df
-                colnames = [colnames]
-            elif isinstance(colnames, str): # Assume colnames is supposed to be a single column name
-                raise KeyError(f"string {colnames} not in the DataFrame")
-        elif not isinstance(colnames, collections.Iterable): # assume colname is an iterable of column names
-            raise ValueError(f"{colnames} must be a single column name in df or an iterable of column names")
         return colnames
 
     if colnames is None: colnames = default
@@ -77,7 +33,7 @@ def _ensure_columns_not_levels(df, column_list=None):
         df = df.reset_index()
     return df
 
-def list_columns(*column_groups, df=None, default=None)->list:
+def list_columns(*column_groups, default=None)->list:
     """Retuns a single list of column names from an arbitrary number
     of lists of column names or single column names.
 
@@ -90,7 +46,40 @@ def list_columns(*column_groups, df=None, default=None)->list:
     ...
     etc.
     """
-    return [col for col_or_cols in column_groups for col in _ensure_iterable(col_or_cols, df, default=default)]
+    return [col for col_or_cols in column_groups for col in _ensure_iterable(col_or_cols, default=default)]
+
+class VPHoperator:
+    """Class to perform operations on Vivarium Public Health data.
+    """
+
+    def __init__(
+        self,
+        value_col=None,
+        draw_col=None,
+        scenario_col=None,
+        measure_col=None,
+        index_cols=None
+    ):
+        self.value_col = VALUE_COLUMN if value_col is None else value_col
+        self.draw_col = DRAW_COLUMN if draw_col is None else draw_col
+        self.scenario_col = (
+            SCENARIO_COLUMN if scenario_col is None else scenario_col)
+        self.measure_col = (
+            MEASURE_COLUMN if measure_col is None else measure_col)
+        self.index_cols = (
+            [self.draw_col, self.scenario_col] if index_cols is None
+            else index_cols)
+
+    def set_index_columns(self, index_columns:list)->None:
+        """
+        Set INDEX_COLUMNS to a custom list of columns for the Vivarium model output.
+        For example, if tables for different locations have been concatenated with
+        a new column called 'location', then use the following to get the correct
+        behavior for the functions in this module:
+
+        set_index_columns(['location']+lsff_output_processing.INDEX_COLUMNS)
+        """
+        self.index_columns = index_columns
 
 def value(df, include=None, exclude=None, value_cols=VALUE_COLUMN):
     """Set the index of the dataframe so that its only column(s) is (are) value_cols.
@@ -108,10 +97,10 @@ def value(df, include=None, exclude=None, value_cols=VALUE_COLUMN):
     to the index, the caller should call df.reset_index() before passing to this function, or else
     the existing index column will be dropped and replaced with the others.
     """
-    df = _ensure_columns_not_levels(df, list_columns(include, exclude, value_cols, df=df, default=[]))
-    value_cols = _ensure_iterable(value_cols, df)
+    df = _ensure_columns_not_levels(df, list_columns(include, exclude, value_cols, default=[]))
+    value_cols = _ensure_iterable(value_cols)
     if include is None:
-        exclude = _ensure_iterable(exclude, df, default=[])
+        exclude = _ensure_iterable(exclude, default=[])
         index_cols = df.columns.difference([*value_cols, *exclude]).to_list()
     elif exclude is not None:
         raise ValueError(
@@ -159,8 +148,8 @@ def marginalize(df:pd.DataFrame, marginalized_cols, value_cols=VALUE_COLUMN, res
         which have been aggregated over.
         If reset_index == False, all the resulting columns will be placed in the DataFrame's index except for `value_cols`.
     """
-    marginalized_cols = _ensure_iterable(marginalized_cols, df)
-    value_cols = _ensure_iterable(value_cols, df)
+    marginalized_cols = _ensure_iterable(marginalized_cols)
+    value_cols = _ensure_iterable(value_cols)
     # Move Index levels into columns to enable passing index level names as well as column names to marginalize
     df = _ensure_columns_not_levels(df, marginalized_cols)
     index_cols = df.columns.difference([*marginalized_cols, *value_cols]).to_list()
@@ -211,8 +200,8 @@ def stratify(df: pd.DataFrame, strata, value_cols=VALUE_COLUMN, reset_index=True
         If reset_index == False, all the resulting columns will be placed in the DataFrame's index except
         for `value_cols`.
     """
-    strata = _ensure_iterable(strata, df)
-    value_cols = _ensure_iterable(value_cols, df)
+    strata = _ensure_iterable(strata)
+    value_cols = _ensure_iterable(value_cols)
     index_cols = [*strata, *INDEX_COLUMNS]
     summed_data = df.groupby(index_cols, observed=True)[value_cols].sum()
     return summed_data.reset_index() if reset_index else summed_data
@@ -371,8 +360,8 @@ def ratio(
     numerator = _ensure_columns_not_levels(numerator)
     denominator = _ensure_columns_not_levels(denominator)
     # Ensure that numerator_broadcast and denominator_broadcast are iterables of column names
-    numerator_broadcast = _ensure_iterable(numerator_broadcast, numerator, default=[])
-    denominator_broadcast = _ensure_iterable(denominator_broadcast, denominator, default=[])
+    numerator_broadcast = _ensure_iterable(numerator_broadcast, default=[])
+    denominator_broadcast = _ensure_iterable(denominator_broadcast, default=[])
 
     # Avoid potential confusion by requiring common stratification columns to go in strata.
     if len(set(numerator_broadcast) & set(denominator_broadcast)) > 0:
