@@ -81,7 +81,7 @@ class VPHOperator:
         """
         self.index_columns = index_columns
 
-    def value(self, df, include=None, exclude=None, value_cols=VALUE_COLUMN):
+    def value(self, df, include=None, exclude=None, value_cols=None):
         """Set the index of the dataframe so that its only column(s) is (are) value_cols.
         This is useful for performing arithmetic on the dataframe, e.g. value(df1) + value(df2),
         assuming the resulting dataframes have compatible indices.
@@ -97,6 +97,8 @@ class VPHOperator:
         to the index, the caller should call df.reset_index() before passing to this function, or else
         the existing index column will be dropped and replaced with the others.
         """
+        if value_cols is None:
+            value_cols = self.value_col
         df = _ensure_columns_not_levels(df, list_columns(include, exclude, value_cols, default=[]))
         value_cols = _ensure_iterable(value_cols)
         if include is None:
@@ -108,10 +110,10 @@ class VPHOperator:
                 f" You passed {include=}, {exclude=}") # syntax requires python >=3.8
         else:
             include = _ensure_iterable(include, df)
-            index_cols = [*include, *INDEX_COLUMNS]
+            index_cols = [*include, *self.index_cols]
         return df.set_index(index_cols)[value_cols]
 
-    def marginalize(self, df:pd.DataFrame, marginalized_cols, value_cols=VALUE_COLUMN, reset_index=True)->pd.DataFrame:
+    def marginalize(self, df:pd.DataFrame, marginalized_cols, value_cols=None, reset_index=True)->pd.DataFrame:
         """Sum the values of a dataframe over the specified columns to marginalize out.
 
         https://en.wikipedia.org/wiki/Marginal_distribution
@@ -148,15 +150,17 @@ class VPHOperator:
             which have been aggregated over.
             If reset_index == False, all the resulting columns will be placed in the DataFrame's index except for `value_cols`.
         """
+        if value_cols is None:
+            value_cols = self.value_col
         marginalized_cols = _ensure_iterable(marginalized_cols)
         value_cols = _ensure_iterable(value_cols)
         # Move Index levels into columns to enable passing index level names as well as column names to marginalize
         df = _ensure_columns_not_levels(df, marginalized_cols)
-        index_cols = df.columns.difference([*marginalized_cols, *value_cols]).to_list()
+        index_cols = df.columns.difference([*marginalized_cols, *value_cols]).to_list() # must convert to list for groupby
         summed_data = df.groupby(index_cols, observed=True)[value_cols].sum() # observed=True needed for Categorical data
         return summed_data.reset_index() if reset_index else summed_data
 
-    def stratify(self, df: pd.DataFrame, strata, value_cols=VALUE_COLUMN, reset_index=True)->pd.DataFrame:
+    def stratify(self, df: pd.DataFrame, strata, value_cols=None, reset_index=True)->pd.DataFrame:
         """Sum the values of the dataframe so that the reult is stratified by the specified strata.
 
         https://en.wikipedia.org/wiki/Stratification_(clinical_trials)
@@ -200,13 +204,15 @@ class VPHOperator:
             If reset_index == False, all the resulting columns will be placed in the DataFrame's index except
             for `value_cols`.
         """
+        if value_cols is None:
+            value_cols = self.value_col
         strata = _ensure_iterable(strata)
         value_cols = _ensure_iterable(value_cols)
-        index_cols = [*strata, *INDEX_COLUMNS]
-        summed_data = df.groupby(index_cols, observed=True)[value_cols].sum()
+        index_cols = [*strata, *self.index_cols]
+        summed_data = df.groupby(index_cols, observed=True)[value_cols].sum() # change to .agg
         return summed_data.reset_index() if reset_index else summed_data
 
-    def aggregate_categories(self, df, category_col, supercategory_to_categories, append=False):
+    def aggregate_categories(self, df, category_col, supercategory_to_categories, append=False, value_cols=None, reset_index=True):
         """Aggregates (by summing) the values corresponding to the specified categories in
         a specified column of a dataframe into "supercategories" for that column.
 
@@ -265,10 +271,10 @@ class VPHOperator:
         aggregated_df = (
             df.rename(columns={category_col: orig_category_col})
             .assign(**{category_col: lambda df: df[orig_category_col].map(category_to_supercategory)})
-            .pipe(marginalize, orig_category_col) # TODO: Add value_cols and reset_index parameters and pass them here
+            .pipe(self.marginalize, orig_category_col, value_cols, reset_index)
         )
         if append:
-            return df.append(aggregated_df, ignore_index=True)
+            return pd.concat([df, aggregated_df], ignore_index=True)
         else:
             return aggregated_df
 
@@ -280,8 +286,8 @@ class VPHOperator:
         multiplier=1,
         numerator_broadcast=None,
         denominator_broadcast=None,
-        value_col=VALUE_COLUMN,
-        measure_col=MEASURE_COLUMN,
+        value_col=None,
+        measure_col=None,
         dropna=False,
         record_inputs=None,
         reset_index=True,
@@ -356,6 +362,10 @@ class VPHOperator:
          ratio : DataFrame
              The ratio or rate data = numerator / denominator.
         """
+        if value_col is None:
+            value_col = self.value_col
+        if measure_col is None:
+            measure_col = self.measure_col
         # Ensure that index columns in numerator and denominator are columns not index levels,
         # to guarantee that _ensure_iterable will work and df[measure_col] will work.
         numerator = _ensure_columns_not_levels(numerator)
@@ -384,8 +394,8 @@ class VPHOperator:
         # Ensure strata is an iterable of column names so it can be concatenated with broadcast columns
         strata = _ensure_iterable(strata, denominator)
         # Stratify numerator and denominator with broadcast columns included
-        numerator = stratify(numerator, [*strata, *numerator_broadcast], value_cols=value_col, reset_index=False)
-        denominator = stratify(denominator, [*strata, *denominator_broadcast], value_cols=value_col, reset_index=False)
+        numerator = self.stratify(numerator, [*strata, *numerator_broadcast], value_cols=value_col, reset_index=False)
+        denominator = self.stratify(denominator, [*strata, *denominator_broadcast], value_cols=value_col, reset_index=False)
 
         # Compute the ratio
         ratio = (numerator / denominator) * multiplier
@@ -400,7 +410,10 @@ class VPHOperator:
             ratio['multiplier'] = multiplier
 
         if reset_index:
-            ratio.reset_index(inplace=True)
+            # Note: inplace=True is deprecated for .reset_index because
+            # it becomes redundant when Copy-on-Write is implemented:
+            # https://github.com/pandas-dev/pandas/blob/2654fe9ba91dd44ed66f0c246d4ed0c5dde7e391/web/pandas/pdeps/0008-inplace-methods-in-pandas.md
+            ratio = ratio.reset_index()
 
         return ratio
 
