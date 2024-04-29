@@ -81,7 +81,7 @@ class VPHOperator:
         """
         # TODO: Save current index columns, and add a method .reset_index()
         # to return to the original
-        self.index_columns = index_columns
+        self.index_cols = index_columns
 
     def value(self, df, include=None, exclude=None, value_cols=None):
         """Set the index of the dataframe so that its only column(s) is (are) value_cols.
@@ -125,7 +125,8 @@ class VPHOperator:
         args=(), # Positional args to pass to func in DataFrameGroupBy.agg
         **kwargs, # Keywords to pass to DataFrameGroupBy.agg
     )->pd.DataFrame:
-        """Sum the values of a dataframe over the specified columns to marginalize out.
+        """Sum (or otherwise aggregate) the values of a dataframe over
+        the specified columns to marginalize out.
 
         https://en.wikipedia.org/wiki/Marginal_distribution
 
@@ -180,8 +181,18 @@ class VPHOperator:
         )[value_cols].agg(func, *args, **kwargs)
         return aggregated_data
 
-    def stratify(self, df: pd.DataFrame, strata, value_cols=None, reset_index=True)->pd.DataFrame:
-        """Sum the values of the dataframe so that the reult is stratified by the specified strata.
+    def stratify(
+        self, df: pd.DataFrame,
+        strata,
+        value_cols=None,
+        index_cols=None,
+        reset_index=True,
+        func='sum',
+        args=(), # Positional args to pass to func in DataFrameGroupBy.agg
+        **kwargs, # Keywords to pass to DataFrameGroupBy.agg
+    )->pd.DataFrame:
+        """Sum (or otherwise aggregate) the values of the dataframe so
+        that the reult is stratified by the specified strata.
 
         https://en.wikipedia.org/wiki/Stratification_(clinical_trials)
 
@@ -226,14 +237,29 @@ class VPHOperator:
         """
         if value_cols is None:
             value_cols = self.value_col
+        if index_cols is None:
+            index_cols = self.index_cols
         strata = _ensure_iterable(strata)
         value_cols = _ensure_iterable(value_cols)
-        index_cols = [*strata, *self.index_cols]
-        summed_data = df.groupby(index_cols, observed=True)[value_cols].sum() # change to .agg
-        return summed_data.reset_index() if reset_index else summed_data
+        groupby_cols = [*strata, *index_cols]
+        aggregated_data = df.groupby(
+            groupby_cols, as_index=~reset_index, observed=True
+        )[value_cols].agg(func, *args, **kwargs)
+        return aggregated_data
 
-    def aggregate_categories(self, df, category_col, supercategory_to_categories, append=False, value_cols=None, reset_index=True):
-        """Aggregates (by summing) the values corresponding to the specified categories in
+    def aggregate_categories(
+        self,
+        df,
+        category_col,
+        supercategory_to_categories,
+        append=False,
+        value_cols=None,
+        reset_index=True,
+        func='sum',
+        args=(), # Positional args to pass to func in DataFrameGroupBy.agg
+        **kwargs, # Keywords to pass to DataFrameGroupBy.agg
+    ):
+        """Aggregates (via sum by default) the values corresponding to the specified categories in
         a specified column of a dataframe into "supercategories" for that column.
 
         The categories to aggregate and the supercategories they comprise are specified by the dictionary
@@ -281,17 +307,27 @@ class VPHOperator:
             `df` if `append` is True, or containing only the supercategories if `append` is False.
         """
         category_to_supercategory = {
-            category: supercategory for supercategory, categories in supercategory_to_categories.items() for category in categories
+            category: supercategory
+            for supercategory, categories in supercategory_to_categories.items()
+            for category in categories
         }
         orig_category_col = f'original_{category_col}'
         while orig_category_col in df:
             orig_category_col += 'X'
-            if len(orig_category_col) >  len(category_col)+2000:
-                raise RuntimeError(f"Really?? What's up with this DataFrame's column names?! {orig_category_col=}")
+            if len(orig_category_col) >  len(category_col) + 2000:
+                raise RuntimeError(
+                    f"Really?? What's up with this DataFrame's column names?! {orig_category_col=}")
         aggregated_df = (
             df.rename(columns={category_col: orig_category_col})
-            .assign(**{category_col: lambda df: df[orig_category_col].map(category_to_supercategory)})
-            .pipe(self.marginalize, orig_category_col, value_cols, reset_index)
+            .assign(
+                **{category_col: lambda df: df[orig_category_col].map(
+                    category_to_supercategory)})
+            .pipe(
+                self.marginalize,
+                orig_category_col,
+                value_cols,
+                reset_index,
+                func, args, **kwargs)
         )
         if append:
             return pd.concat([df, aggregated_df], ignore_index=True)
