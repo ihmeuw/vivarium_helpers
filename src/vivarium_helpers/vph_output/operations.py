@@ -308,7 +308,8 @@ class VPHOperator:
         """
         category_to_supercategory = {
             category: supercategory
-            for supercategory, categories in supercategory_to_categories.items()
+            for supercategory, categories
+                in supercategory_to_categories.items()
             for category in categories
         }
         orig_category_col = f'original_{category_col}'
@@ -343,6 +344,7 @@ class VPHOperator:
         numerator_broadcast=None,
         denominator_broadcast=None,
         value_col=None,
+        index_cols=None,
         measure_col=None,
         dropna=False,
         record_inputs=None,
@@ -442,16 +444,28 @@ class VPHOperator:
             record_inputs = reset_index
 
         if record_inputs:
-            # Really I think the 'measure' column should always have a unique value, but
-            # currently that is not the case for transition counts...
+            # Really I think the 'measure' column should always have a
+            # unique value, but currently that is not the case for
+            # transition counts...
             numerator_measure = '|'.join(numerator[measure_col].unique())
             denominator_measure = '|'.join(denominator[measure_col].unique())
 
-        # Ensure strata is an iterable of column names so it can be concatenated with broadcast columns
+        # Ensure strata is an iterable of column names so it can be
+        # concatenated with broadcast columns
         strata = _ensure_iterable(strata, denominator)
         # Stratify numerator and denominator with broadcast columns included
-        numerator = self.stratify(numerator, [*strata, *numerator_broadcast], value_cols=value_col, reset_index=False)
-        denominator = self.stratify(denominator, [*strata, *denominator_broadcast], value_cols=value_col, reset_index=False)
+        numerator = self.stratify(
+            numerator,
+            [*strata, *numerator_broadcast],
+            value_cols=value_col,
+            index_cols=index_cols
+            reset_index=False)
+        denominator = self.stratify(
+            denominator,
+            [*strata, *denominator_broadcast],
+            value_cols=value_col,
+            index_cols=index_cols,
+            reset_index=False)
 
         # Compute the ratio
         ratio = (numerator / denominator) * multiplier
