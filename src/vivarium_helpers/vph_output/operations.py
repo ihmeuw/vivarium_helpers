@@ -79,6 +79,8 @@ class VPHOperator:
 
         set_index_columns(['location']+lsff_output_processing.INDEX_COLUMNS)
         """
+        # TODO: Save current index columns, and add a method .reset_index()
+        # to return to the original
         self.index_columns = index_columns
 
     def value(self, df, include=None, exclude=None, value_cols=None):
@@ -402,7 +404,9 @@ class VPHOperator:
 
         # If dropna is True, drop rows where we divided by 0
         if dropna:
-            ratio.dropna(inplace=True)
+            # Note: inplace=True is deprecated because .dropna() changes
+            # the shape of data and never actually operates in place
+            ratio = ratio.dropna()
 
         if record_inputs:
             ratio[f'numerator_{measure_col}'] = numerator_measure
@@ -417,7 +421,13 @@ class VPHOperator:
 
         return ratio
 
-    def difference(self, measure:pd.DataFrame, identifier_col:str, minuend_id=None, subtrahend_id=None)->pd.DataFrame:
+    def difference(
+        self,
+        measure:pd.DataFrame,
+        identifier_col:str,
+        minuend_id=None,
+        subtrahend_id=None,
+    )->pd.DataFrame:
         """
         Returns the difference of a measure stored in the measure DataFrame, where the
         rows for the minuend (that which is diminished) and subtrahend (that which is subtracted)
@@ -455,7 +465,7 @@ class VPHOperator:
         # Subtract DataFrames, not Series, because Series will drop the identifier column from the index
         # if there is no broadcasting. (Behavior for Series and DataFrames is different - is this a
         # feature or a bug in pandas?)
-        difference = minuend[[VALUE_COLUMN]] - subtrahend[[VALUE_COLUMN]]
+        difference = minuend[[self.value_col]] - subtrahend[[self.value_col]]
         difference = difference.reset_index()
 
         # Add a column to specify what was subtracted from (the minuend) or what was subtracted (the subtrahend)
@@ -489,8 +499,8 @@ class VPHOperator:
         averted : DataFrame
             The averted measure(s) = baseline - intervention
         """
-
-        scenario_col = SCENARIO_COLUMN if scenario_col is None else scenario_col
+        if scenario_col is None:
+            scenario_col = self.scenario_col
         # Subtract intervention from baseline
         averted = difference(measure, identifier_col=scenario_col, minuend_id=baseline_scenario)
         # Insert a column after the scenario column to record what the baseline scenario was
@@ -498,13 +508,16 @@ class VPHOperator:
         return averted
 
     def describe(self, df, **describe_kwargs):
-        """Wrapper function for DataFrame.describe() with `df` grouped by everything except draw and value."""
+        """Describes the distribution of df's values across draws.
+        This is a wrapper function for DataFrameGroupBy.describe(),
+        with `df` grouped by everything except draw and value.
+        """
         if 'percentiles' not in describe_kwargs:
             describe_kwargs['percentiles'] = [.025, .975]
-        excluded_cols = [DRAW_COLUMN, VALUE_COLUMN]
+        excluded_cols = [self.draw_col, self.value_col]
         df = _ensure_columns_not_levels(df, excluded_cols)
         groupby_cols = df.columns.difference(excluded_cols).to_list()
-        return df.groupby(groupby_cols)[VALUE_COLUMN].describe(**describe_kwargs)
+        return df.groupby(groupby_cols)[self.value_col].describe(**describe_kwargs)
 
     def get_mean_lower_upper(described_data, colname_mapper={'mean':'mean', '2.5%':'lower', '97.5%':'upper'}):
         """
