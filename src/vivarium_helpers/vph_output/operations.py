@@ -24,7 +24,7 @@ def _ensure_iterable(colnames, default=None):
         return colnames
 
     if colnames is None: colnames = default
-    return method1(colnames, df) # Go with the most restrictive method for now
+    return method1(colnames) # Go with the most restrictive method for now
 
 def _ensure_columns_not_levels(df, column_list=None):
     """Move Index levels into columns to enable passing index level names as well as column names."""
@@ -177,7 +177,7 @@ class VPHOperator:
             [*marginalized_cols, *value_cols]).to_list()
         aggregated_data = df.groupby(
             # observed=True needed for Categorical data
-            index_cols, as_index=~reset_index, observed=True
+            index_cols, as_index=(not reset_index), observed=True
         )[value_cols].agg(func, *args, **kwargs)
         return aggregated_data
 
@@ -243,7 +243,7 @@ class VPHOperator:
         value_cols = _ensure_iterable(value_cols)
         groupby_cols = [*strata, *index_cols]
         aggregated_data = df.groupby(
-            groupby_cols, as_index=~reset_index, observed=True
+            groupby_cols, as_index=(not reset_index), observed=True
         )[value_cols].agg(func, *args, **kwargs)
         return aggregated_data
 
@@ -458,7 +458,7 @@ class VPHOperator:
             numerator,
             [*strata, *numerator_broadcast],
             value_cols=value_col,
-            index_cols=index_cols
+            index_cols=index_cols,
             reset_index=False)
         denominator = self.stratify(
             denominator,
