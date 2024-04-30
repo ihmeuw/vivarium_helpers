@@ -21,7 +21,7 @@ class VPHOutput(AttributeMapping):
     """
 
     @classmethod
-    def from_directory(cls, directory):
+    def from_directory(cls, directory, ext='.hdf', **kwargs):
         """Create a VivariumTransformedOutput object from the directory where the count data tables from a single
         simulation are stored.
 
@@ -30,7 +30,7 @@ class VPHOutput(AttributeMapping):
         data.ylls # YLL table
         data.person_time # Person-time table
         """
-        return cls(load_transformed_count_data(directory))
+        return cls(load_transformed_count_data(directory, ext, **kwargs))
 
     @classmethod
     def from_locations_paths(cls, locations_paths, subdirectory='count_data'):
@@ -74,18 +74,19 @@ class VPHOutput(AttributeMapping):
     def table_names(self):
         return self.keys()
 
-def load_transformed_count_data(directory: str, ext='.hdf') -> dict:
+def load_transformed_count_data(directory: str, ext='.hdf', **kwargs) -> dict:
     """
     Loads each transformed "count space" .hdf output file into a dataframe,
     and returns a dictionary whose keys are the file names and values are
     are the corresponding dataframes.
     """
+    pandas_read = getattr(pd, f"read_{ext[1:]}")
     dfs = {}
     for entry in os.scandir(directory):
         filename_root, extension = os.path.splitext(entry.name)
-        if extension == '.hdf':
+        if extension == ext:
 #             print(filename_root, type(filename_root), extension, entry.path)
-            dfs[filename_root] = pd.read_hdf(entry.path)
+            dfs[filename_root] = pandas_read(entry.path, **kwargs)
     return dfs
 
 def load_count_data_by_location(locations_paths: dict, subdirectory='count_data') -> dict:
