@@ -3,10 +3,8 @@ Module providing functions and data structures for loading and storing (transfor
 (i.e. the minimally processed .csv or .hdf tables saved in the "count_data" folder for a model).
 """
 
-# import collections
 import pandas as pd
 import os
-# import re
 
 from ..utils import AttributeMapping, convert_to_variable_name
 

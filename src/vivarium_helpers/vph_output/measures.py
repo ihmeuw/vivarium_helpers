@@ -47,4 +47,3 @@ class VPHResults(VPHOutput):
             # Set default to None if no tables found
             find_person_time_tables(self, colnames, exclude), None)
         return person_time_table_name
-    
