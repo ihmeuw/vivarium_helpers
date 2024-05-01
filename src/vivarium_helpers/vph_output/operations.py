@@ -136,12 +136,12 @@ class VPHOperator:
         # Move Index levels into columns to enable passing index
         # level names as well as column names to marginalize
         df = _ensure_columns_not_levels(df, marginalized_cols)
-        index_cols = df.columns.difference(
+        groupby_cols = df.columns.difference(
             # must convert Index to list for groupby to work properly
             [*marginalized_cols, *value_cols]).to_list()
         aggregated_data = df.groupby(
             # observed=True needed for Categorical data
-            index_cols, as_index=(not reset_index), observed=True
+            groupby_cols, as_index=(not reset_index), observed=True
         )[value_cols].agg(func, *args, **kwargs)
         return aggregated_data
 
