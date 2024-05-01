@@ -1,5 +1,6 @@
 import pandas as pd
 import collections
+from ..utils import _ensure_iterable, _ensure_columns_not_levels, list_columns
 
 VALUE_COLUMN = 'value'
 DRAW_COLUMN  = 'input_draw'
@@ -7,46 +8,6 @@ SCENARIO_COLUMN = 'scenario'
 MEASURE_COLUMN = 'measure'
 
 INDEX_COLUMNS = [DRAW_COLUMN, SCENARIO_COLUMN]
-
-def _ensure_iterable(colnames, default=None):
-    """Wrap a single column name in a list, or return colnames unaltered if it's already a list of column names.
-    If colnames is None, its value will first be set to the default value (e.g. pass `default=[]` to default to
-    an empty list when colnames is None).
-    """
-
-    def method1(colnames):
-        """Method 1 (doesn't depend on df): Assume that if colnames has a type that is in a whitelist of
-        allowed iterable types, then it is an iterable of column names, and otherwise it must be a single
-        column name.
-        """
-        if not isinstance(colnames, (list, pd.Index)):
-            colnames = [colnames]
-        return colnames
-
-    if colnames is None: colnames = default
-    return method1(colnames) # Go with the most restrictive method for now
-
-def _ensure_columns_not_levels(df, column_list=None):
-    """Move Index levels into columns to enable passing index level names as well as column names."""
-    if column_list is None: column_list = []
-    if df.index.nlevels > 1 or df.index.name in column_list:
-        df = df.reset_index()
-    return df
-
-def list_columns(*column_groups, default=None)->list:
-    """Retuns a single list of column names from an arbitrary number
-    of lists of column names or single column names.
-
-    For example, all of the following return ['a', 'b', 'c', 'd', 'e']:
-
-    list_columns(['a', 'b', 'c', 'd', 'e'])
-    list_columns('a', 'b', 'c', 'd', 'e')
-    list_columns(['a', 'b'], ['c', 'd'], ['e'])
-    list_columns('a', ['b', 'c'], 'd', ['e'])
-    ...
-    etc.
-    """
-    return [col for col_or_cols in column_groups for col in _ensure_iterable(col_or_cols, default=default)]
 
 class VPHOperator:
     """Class to perform operations on Vivarium Public Health data.
@@ -83,6 +44,9 @@ class VPHOperator:
         # to return to the original
         self.index_cols = index_columns
 
+    # TODO: Either add an index_cols parameter here, or figure out if
+    # there's a way to mimic the same behavior by allowing the user
+    # to pass both `include` and `exclude`
     def value(self, df, include=None, exclude=None, value_cols=None):
         """Set the index of the dataframe so that its only column(s) is (are) value_cols.
         This is useful for performing arithmetic on the dataframe, e.g. value(df1) + value(df2),
@@ -587,13 +551,6 @@ class VPHOperator:
         groupby_cols = df.columns.difference(excluded_cols).to_list()
         return df.groupby(groupby_cols)[self.value_col].describe(**describe_kwargs)
 
-    def get_mean_lower_upper(described_data, colname_mapper={'mean':'mean', '2.5%':'lower', '97.5%':'upper'}):
-        """
-        Gets the mean, lower, and upper value from `described_data` DataFrame, which is assumed to have
-        the format resulting from a call to DataFrame.describe().
-        """
-        return described_data[colname_mapper.keys()].rename(columns=colname_mapper).reset_index()
-
     def assert_values_equal(self, df1, df2, **kwargs):
         """Test whether the value columns of df1 and df2 are equal, using all other columns as the index,
         using the `pd.testing.assert_frame_equal` function.
@@ -610,13 +567,15 @@ class VPHOperator:
         df2 = self.value(df2).reindex(df1.index)
         return df1.compare(df2, **kwargs)
 
-# Alternative strategy to the above function
-def aggregate_mean_lower_upper(df_or_groupby, lower_rank=0.025, upper_rank=0.975):
-    """Get mean, lower, and upper from a DataFrame or GroupBy object."""
-    def lower(x): return x.quantile(lower_rank)
-    def upper(x): return x.quantile(upper_rank)
-    return df_or_groupby.agg(['mean', lower, upper])
-
+# NOTE:
+# An alternative strategy to defining __getattr__ as below
+# is to replace this module in sys.modules with the global instance
+# of the class defined above (called _ops below), as described here:
+# https://stackoverflow.com/questions/2447353/getattr-on-a-module
+#
+# Specifically, in this answer and the page it links to:
+# https://stackoverflow.com/a/7668273/24446049
+# https://mail.python.org/pipermail/python-ideas/2012-May/014969.html
 
 # Global instance to implement methods as module functions,
 # using default values for columns names
