@@ -74,7 +74,24 @@ def convert_to_variable_name(string):
     Runs of non-word characters (regex matchs \W+) are converted to '_',
     and '_' is appended to the beginning of the string if the string
     starts with a digit (regex matches ^(?=\d)).
+
     Solution copied from here:
     https://stackoverflow.com/questions/3303312/how-do-i-convert-a-string-to-a-valid-variable-name-in-python
     """
     return re.sub('\W+|^(?=\d)', '_', string)
+
+def column_to_ordered_categorical(
+    df, colname, ordered_categories, inplace=False
+):
+    """Converts the column `colname` of the DataFrame `df` to an orderd
+    pandas Categorical. This is useful for automatically displaying
+    unique column elements in a specified order in results tables or
+    plots.
+    """
+    categorical = pd.Categorical(
+        df[colname], categories=ordered_categories, ordered=True)
+    if inplace:
+        df[colname] = categorical
+        return None
+    else:
+        return df.assign(**{colname: categorical})
