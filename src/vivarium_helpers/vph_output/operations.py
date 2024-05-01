@@ -594,6 +594,22 @@ class VPHOperator:
         """
         return described_data[colname_mapper.keys()].rename(columns=colname_mapper).reset_index()
 
+    def assert_values_equal(self, df1, df2, **kwargs):
+        """Test whether the value columns of df1 and df2 are equal, using all other columns as the index,
+        using the `pd.testing.assert_frame_equal` function.
+        """
+        df1 = self.value(df1)
+        df2 = self.value(df2).reindex(df1.index)
+        pd.testing.assert_frame_equal(df1, df2, **kwargs)
+
+    def compare_values(self, df1, df2, **kwargs):
+        """Compare the value columns of df1 and df2, using all other columns as the index,
+        using the `pd.DataFrame.compare` method.
+        """
+        df1 = self.value(df1)
+        df2 = self.value(df2).reindex(df1.index)
+        return df1.compare(df2, **kwargs)
+
 # Alternative strategy to the above function
 def aggregate_mean_lower_upper(df_or_groupby, lower_rank=0.025, upper_rank=0.975):
     """Get mean, lower, and upper from a DataFrame or GroupBy object."""
@@ -601,18 +617,14 @@ def aggregate_mean_lower_upper(df_or_groupby, lower_rank=0.025, upper_rank=0.975
     def upper(x): return x.quantile(upper_rank)
     return df_or_groupby.agg(['mean', lower, upper])
 
-def assert_values_equal(df1, df2, **kwargs):
-    """Test whether the value columns of df1 and df2 are equal, using all other columns as the index,
-    using the `pd.testing.assert_frame_equal` function.
-    """
-    df1 = value(df1)
-    df2 = value(df2).reindex(df1.index)
-    pd.testing.assert_frame_equal(df1, df2, **kwargs)
 
-def compare_values(df1, df2, **kwargs):
-    """Compare the value columns of df1 and df2, using all other columns as the index,
-    using the `pd.DataFrame.compare` method.
-    """
-    df1 = value(df1)
-    df2 = value(df2).reindex(df1.index)
-    return df1.compare(df2, **kwargs)
+# Global instance to implement methods as module functions,
+# using default values for columns names
+_ops = VPHOperator()
+
+# Enable calling all methods of VPHOperator as module functions
+def __getattr__(name):
+    try:
+        return getattr(_ops, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
