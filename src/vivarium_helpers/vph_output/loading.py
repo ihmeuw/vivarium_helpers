@@ -70,7 +70,7 @@ class VPHOutput(AttributeMapping):
         return cls(load_and_merge_location_count_data(locations_paths, subdirectory))
 
     def table_names(self):
-        return self.keys()
+        return list(self.keys())
 
 def load_transformed_count_data(directory: str, ext='.hdf', **kwargs) -> dict:
     """
