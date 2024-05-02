@@ -4,46 +4,6 @@ from .operations import VPHOperator, list_columns
 
 class VPHResults(VPHOutput):
 
-    @classmethod
-    def clean_vph_output(cls, data):
-        """Reformat transformed count data to make more sense.
-
-        Parameters
-        ----------
-        data: Mapping of table names to DataFrames
-            The transformed data tables to clean.
-        """
-        # Make a copy of the data by creating a VPHResults object
-        # with the same tables stored in `data`
-        clean_data = VPHOutput(data)
-        # Define a function to make the transition count dataframes better
-        def clean_transition_df(df):
-            df = split_measure_and_transition_columns(df)
-            return df.join(extract_transition_states(df))
-        # # Make the wasting and disease transition count dataframes better
-        # clean_data.update(
-        #     {table_name: clean_transition_df(table)
-        #      for table_name, table in data.items()
-        #      if table_name.endswith('transition_count')}
-
-        if 'ylds' in data and 'cause_of_disability' in data['ylds']:
-            clean_data['ylds'] = data['ylds'].rename(
-            columns={'cause_of_disability': 'cause'})
-
-        return cls(clean_data)
-
-    @classmethod
-    def cleaned_from_directory(cls, directory, ext='.hdf', **kwargs):
-        """Read tables from a directory and clean them.
-        """
-        # print(cls)
-        # print(super(cls))
-        data = VPHOutput.from_directory(directory, ext, **kwargs)
-        # print(data['ylds'].columns)
-        data = cls.clean_vph_output(data)
-        # print(data['ylds'].columns)
-        return data
-
     def __init__(
         self,
         mapping=(),
@@ -64,8 +24,20 @@ class VPHResults(VPHOutput):
             measure_col,
             index_cols
         )
+        self._clean_vph_output()
         if record_dalys:
             self.compute_and_save_dalys()
+
+    def _clean_vph_output(self):
+        """Reformat transformed count data to make more sense."""
+        # # Make the wasting and disease transition count dataframes better
+        # clean_data.update(
+        #     {table_name: clean_transition_df(table)
+        #      for table_name, table in data.items()
+        #      if table_name.endswith('transition_count')})
+        if 'ylds' in self and 'cause_of_disability' in self['ylds']:
+            self['ylds'].rename(
+                        columns={'cause_of_disability': 'cause'}, inplace=True)
 
     def compute_dalys(self):
         # TODO: Handle the case where one of YLLs or YLDs
@@ -73,14 +45,14 @@ class VPHResults(VPHOutput):
         yll_extra_strata = self.ylls.columns.difference(self.ylds.columns)
         yld_extra_strata = self.ylds.columns.difference(self.ylls.columns)
         # Marginalize extra columns so that we can concatenate
-        print(f'{yll_extra_strata=}, {yld_extra_strata=}')
+        # print(f'{yll_extra_strata=}, {yld_extra_strata=}')
         ylls = self.ops.marginalize(self.ylls, yll_extra_strata)
         ylds = self.ops.marginalize(self.ylds, yld_extra_strata)
         dalys = pd.concat([ylls, ylds])
-        print(f'{len(ylls)=}, {len(ylds)=} {len(dalys)=}')
+        # print(f'{len(ylls)=}, {len(ylds)=} {len(dalys)=}')
         dalys = self.ops.aggregate_categories(
             dalys, 'measure', {'dalys': ['ylls', 'ylds']})
-        print(f'{len(dalys)=}')
+        # print(f'{len(dalys)=}')
         return dalys
 
     def compute_and_save_dalys(self):
@@ -224,6 +196,9 @@ class VPHResults(VPHOutput):
         ).assign(measure='relative_risk') # Or perhaps I should be more specific, i.e. "prevalence_ratio" or "rate_ratio"
         return relative_risk
 
+########################
+#### Module methods ####
+
 def split_measure_and_transition_columns(transition_df):
     """Separates the transition from the measure in the strings in the 'measure'
     columns in a transition count dataframe, and puts these in separate 'transition'
@@ -250,3 +225,8 @@ def extract_transition_states(transition_df):
         .apply(lambda col: col.str.replace("without", "susceptible_to")) # Restore original state names
     )
     return states_df
+
+# Define a function to make the transition count dataframes better
+def clean_transition_df(df):
+    df = split_measure_and_transition_columns(df)
+    return df.join(extract_transition_states(df))
