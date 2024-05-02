@@ -30,6 +30,9 @@ class VPHResults(VPHOutput):
 
     def _clean_vph_output(self):
         """Reformat transformed count data to make more sense."""
+        # TODO: Maybe implement this as a module method and
+        # call it from here, since it will probably be a lot of code
+        #
         # # Make the wasting and disease transition count dataframes better
         # clean_data.update(
         #     {table_name: clean_transition_df(table)
@@ -42,6 +45,10 @@ class VPHResults(VPHOutput):
     def compute_dalys(self):
         # TODO: Handle the case where one of YLLs or YLDs
         # has 'all_causes' but the other doesn't, as in NO project
+        # TODO: Use .intersection and .stratify instead of
+        # .difference and .marginalize
+        # TODO: Perhaps add a function to concatenate all 4 burden dataframes,
+        # also by taking the intersection of all stratification variables
         yll_extra_strata = self.ylls.columns.difference(self.ylds.columns)
         yld_extra_strata = self.ylds.columns.difference(self.ylls.columns)
         # Marginalize extra columns so that we can concatenate
@@ -101,6 +108,10 @@ class VPHResults(VPHOutput):
             The measure of burden for which to compute the rate. One of
             `deaths`, `ylls`, `ylds`, or `dalys`.
         """
+        # TODO: Is it possible/desirable to enable passing multiple burden
+        # measures in order to compute multiple rates simultaneously?
+        # Maybe it would be better to create a 'burden' table with all 4
+        # measures as described above, then broadcast over measure.
         burden = self[measure]
         denominator_columns = list_columns(
             strata, kwargs.get('denominator_broadcast'), default=[])
