@@ -58,6 +58,9 @@ class VPHResults(VPHOutput):
     def compute_and_save_dalys(self):
         self['dalys'] = self.compute_dalys()
 
+    def table_names(self):
+        return [name for name in self if name != 'ops']
+
     def find_person_time_tables(self, colnames, exclude=None):
         """Generate person-time table names in this VPHResults object
         that contain the specified column names, excluding the
@@ -73,14 +76,50 @@ class VPHResults(VPHOutput):
         )
         return table_names
 
-    def get_person_time_table_name(self, colnames, exclude=None):
+    def get_person_time_table_name(self, colnames, exclude=None, error=False):
         """Return the name of a person-table that contains the
-        specified columns, None if none can be found.
+        specified columns. If no such table can be found, returns
+        None unless `error` is True, in which case a ValueError
+        is raised.
         """
         person_time_table_name = next(
             # Set default to None if no tables found
-            find_person_time_tables(self, colnames, exclude), None)
+            self.find_person_time_tables(colnames, exclude), None)
+        if error and person_time_table_name is None:
+            raise ValueError(
+                f"No person-time table found with columns {colnames}."
+                f" (Excluded tables: {exclude})")
         return person_time_table_name
+
+    def get_burden_rate(self, measure, strata, prefilter_query=None, **kwargs):
+        """Compute the burden rate, where burden is one of `deaths`,
+        `ylls`, `ylds`, or `dalys`.
+
+        Parameters
+        ----------
+        measure: str
+            The measure of burden for which to compute the rate. One of
+            `deaths`, `ylls`, `ylds`, or `dalys`.
+        """
+        burden = self[measure]
+        denominator_columns = list_columns(
+            strata, kwargs.get('denominator_broadcast'), default=[])
+        denominator_table_name = self.get_person_time_table_name(
+            denominator_columns, exclude='cause_state_person_time', error=True)
+        person_time = self[denominator_table_name]
+        # Filter input dataframes if requested
+        if prefilter_query:
+            burden = burden.query(prefilter_query)
+            person_time = person_time.query(prefilter_query)
+        # Divide to compute burden rate
+        burden_rate = self.ops.ratio(
+            numerator=burden,
+            denominator=person_time,
+            strata=strata,
+            **kwargs,
+            # Remove 's' from the end of measure when naming the rate
+        ).assign(measure=f'{measure[:-1]}_rate')
+        return burden_rate
 
     def get_prevalence(data, state_variable, strata, prefilter_query=None, **kwargs):
         """Compute the prevalence of the specified state_variable, which may represent a risk state or cause state
