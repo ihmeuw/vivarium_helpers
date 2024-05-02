@@ -534,7 +534,7 @@ class VPHOperator:
         if scenario_col is None:
             scenario_col = self.scenario_col
         # Subtract intervention from baseline
-        averted = difference(measure, identifier_col=scenario_col, minuend_id=baseline_scenario)
+        averted = self.difference(measure, identifier_col=scenario_col, minuend_id=baseline_scenario)
         # Insert a column after the scenario column to record what the baseline scenario was
     #     averted.insert(averted.columns.get_loc(scenario_col)+1, 'relative_to', baseline_scenario)
         return averted
