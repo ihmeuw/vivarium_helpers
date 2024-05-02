@@ -15,7 +15,7 @@ class VPHResults(VPHOutput):
         """
         # Make a copy of the data by creating a VPHResults object
         # with the same tables stored in `data`
-        clean_data = cls(data)
+        clean_data = VPHOutput(data)
         # Define a function to make the transition count dataframes better
         def clean_transition_df(df):
             df = split_measure_and_transition_columns(df)
@@ -30,7 +30,19 @@ class VPHResults(VPHOutput):
             clean_data['ylds'] = data['ylds'].rename(
             columns={'cause_of_disability': 'cause'})
 
-        return clean_data
+        return cls(clean_data)
+
+    @classmethod
+    def cleaned_from_directory(cls, directory, ext='.hdf', **kwargs):
+        """Read tables from a directory and clean them.
+        """
+        # print(cls)
+        # print(super(cls))
+        data = VPHOutput.from_directory(directory, ext, **kwargs)
+        # print(data['ylds'].columns)
+        data = cls.clean_vph_output(data)
+        # print(data['ylds'].columns)
+        return data
 
     def __init__(
         self,
@@ -41,6 +53,7 @@ class VPHResults(VPHOutput):
         scenario_col=None,
         measure_col=None,
         index_cols=None,
+        record_dalys=True,
         **kwargs,
     ):
         super().__init__(mapping, **kwargs)
@@ -51,6 +64,27 @@ class VPHResults(VPHOutput):
             measure_col,
             index_cols
         )
+        if record_dalys:
+            self.compute_and_save_dalys()
+
+    def compute_dalys(self):
+        # TODO: Handle the case where one of YLLs or YLDs
+        # has 'all_causes' but the other doesn't, as in NO project
+        yll_extra_strata = self.ylls.columns.difference(self.ylds.columns)
+        yld_extra_strata = self.ylds.columns.difference(self.ylls.columns)
+        # Marginalize extra columns so that we can concatenate
+        print(f'{yll_extra_strata=}, {yld_extra_strata=}')
+        ylls = self.ops.marginalize(self.ylls, yll_extra_strata)
+        ylds = self.ops.marginalize(self.ylds, yld_extra_strata)
+        dalys = pd.concat([ylls, ylds])
+        print(f'{len(ylls)=}, {len(ylds)=} {len(dalys)=}')
+        dalys = self.ops.aggregate_categories(
+            dalys, 'measure', {'dalys': ['ylls', 'ylds']})
+        print(f'{len(dalys)=}')
+        return dalys
+
+    def compute_and_save_dalys(self):
+        self['dalys'] = self.compute_dalys()
 
     def find_person_time_tables(self, colnames, exclude=None):
         """Generate person-time table names in this VPHResults object
