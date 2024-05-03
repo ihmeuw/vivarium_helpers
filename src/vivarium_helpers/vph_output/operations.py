@@ -258,7 +258,9 @@ class VPHOperator:
 
         supercategory_to_categories: dict
             A dictionary mapping the name of each supercategory to a list of the categories
-            comprising the supercategory.
+            comprising the supercategory, or to a single category.
+            Any category not appearing in one of the lists of categories
+            for a supercategory will get mapped to itself.
 
         append: bool, default False
             Whether to append the aggregated supercategories to the original dataframe or to
@@ -270,26 +272,28 @@ class VPHOperator:
             A new dataframe which contains the aggregated supercategories, appended to the end of
             `df` if `append` is True, or containing only the supercategories if `append` is False.
         """
+        # Reverse the dictionary, unpacking the lists
         category_to_supercategory = {
             category: supercategory
             for supercategory, categories
                 in supercategory_to_categories.items()
             for category in _ensure_iterable(categories)
         }
+        # Identify any categories not in a supercategory
         missing_categories = (
             set(df[category_col]) - category_to_supercategory.keys())
+        # Map each leftover category to itself
         category_to_supercategory.update(
             {cat: cat for cat in missing_categories})
+        # Margnializing over nothing is equivalent to stratifying by
+        # every column except those in value_cols. After mapping each
+        # category to its supercategory, this will collapse all rows
+        # corresponding to each supercategory within the remaining
+        # strata.
         aggregated_df = (
-            df
-            .assign(
-                **{category_col: lambda df: df[category_col].map(
-                    category_to_supercategory)})
-            .pipe(
-                self.marginalize,
-                [],
-                value_cols,
-                reset_index,
+            df.assign(**{category_col: lambda df: df[category_col].map(
+                category_to_supercategory)})
+            .pipe(self.marginalize, [], value_cols, reset_index,
                 func, args, **kwargs)
         )
         if append:
