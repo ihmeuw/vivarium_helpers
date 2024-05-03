@@ -274,8 +274,12 @@ class VPHOperator:
             category: supercategory
             for supercategory, categories
                 in supercategory_to_categories.items()
-            for category in categories
+            for category in _ensure_iterable(categories)
         }
+        missing_categories = (
+            set(df[category_col]) - category_to_supercategory.keys())
+        category_to_supercategory.update(
+            {cat: cat for cat in missing_categories})
         orig_category_col = f'original_{category_col}'
         while orig_category_col in df:
             orig_category_col += 'X'
