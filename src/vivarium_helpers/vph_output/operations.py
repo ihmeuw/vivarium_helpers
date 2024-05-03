@@ -280,20 +280,14 @@ class VPHOperator:
             set(df[category_col]) - category_to_supercategory.keys())
         category_to_supercategory.update(
             {cat: cat for cat in missing_categories})
-        orig_category_col = f'original_{category_col}'
-        while orig_category_col in df:
-            orig_category_col += 'X'
-            if len(orig_category_col) >  len(category_col) + 2000:
-                raise RuntimeError(
-                    f"Really?? What's up with this DataFrame's column names?! {orig_category_col=}")
         aggregated_df = (
-            df.rename(columns={category_col: orig_category_col})
+            df
             .assign(
-                **{category_col: lambda df: df[orig_category_col].map(
+                **{category_col: lambda df: df[category_col].map(
                     category_to_supercategory)})
             .pipe(
                 self.marginalize,
-                orig_category_col,
+                [],
                 value_cols,
                 reset_index,
                 func, args, **kwargs)
