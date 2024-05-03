@@ -15,7 +15,7 @@ class VPHResults(VPHOutput):
         scenario_col=None,
         measure_col=None,
         index_cols=None,
-        record_dalys=True,
+        # record_dalys=True,
         **kwargs,
     ):
         super().__init__(mapping, **kwargs)
@@ -54,7 +54,7 @@ class VPHResults(VPHOutput):
         # print(f'{len(dalys)=}')
         return dalys
 
-    def compute_burden(self, measures=None):
+    def get_burden(self, measures=None):
         """Concatenate, YLDs, YLLs, DALYs, and deaths into one
         dataframe, stratified by the intersection of the stratification
         columns in these.
@@ -69,7 +69,7 @@ class VPHResults(VPHOutput):
                 raise ValueError('Must past at least one measure of burden.')
             # Use YLLs and YLDs to compute DALYs if we haven't already
             if 'dalys' in measures:# and 'dalys' not in self:
-                table_names.append(['ylls', 'ylds'])
+                table_names.extend(['ylls', 'ylds'])
                 table_names = list(set(table_names))
         print(table_names)
         # Get intersection of all columns for stratification
@@ -83,11 +83,11 @@ class VPHResults(VPHOutput):
         # columns_in_common = self.ylds.columns.intersection(
         #     self.ylls.columns.intersection(
         #         self.deaths.columns))
-        columns_in_common = columns_in_common.difference(
+        strata = columns_in_common.difference(
             [self.ops.value_col, *self.ops.index_cols])
         print(columns_in_common)
         burdens = [
-            self.ops.stratify(self[table_name], columns_in_common)
+            self.ops.stratify(self[table_name], strata)
             for table_name in table_names]
         burden = pd.concat(burdens, ignore_index=True)
         print(burden.columns)
@@ -98,10 +98,14 @@ class VPHResults(VPHOutput):
             # that we also have all-cause YLLs so all-cause DALYs will
             # be correct
             if 'all_causes' in np.setdiff1d(ylds['cause'], ylls['cause']):
-                ylls = self.ops.aggregate_categories(
-                    ylls, 'cause', {'all_causes': list(ylls['cause'].unique())},
-                    append=True,
-                )
+                all_cause_ylls = self.ops.marginalize(
+                    ylls.assign(cause='all_causes'), [])
+                burden = pd.concat([burden, all_cause_ylls])
+                print('yll causes:', ylls.cause.unique())
+                # ylls = self.ops.aggregate_categories(
+                #     ylls, 'cause', {'all_causes': list(ylls['cause'].unique())},
+                #     append=True,
+                # )
             burden = self.ops.aggregate_categories(
                 burden, 'measure', {'dalys': ['ylls', 'ylds']}, append=True)
         burden = burden.query(f"measure in {measures}").reset_index(drop=True)
@@ -111,7 +115,7 @@ class VPHResults(VPHOutput):
         self['dalys'] = self.compute_dalys()
 
     def compute_and_save_burden(self, measures=None):
-        self['burden'] = self.compute_burden(measures)
+        self['burden'] = self.get_burden(measures)
 
     def table_names(self):
         return [name for name in self if name != 'ops']
