@@ -279,20 +279,13 @@ class VPHOperator:
                 in supercategory_to_categories.items()
             for category in _ensure_iterable(categories)
         }
-        # Identify any categories not in a supercategory
-        missing_categories = (
-            set(df[category_col]) - category_to_supercategory.keys())
-        # Map each leftover category to itself
-        category_to_supercategory.update(
-            {cat: cat for cat in missing_categories})
         # Margnializing over nothing is equivalent to stratifying by
         # every column except those in value_cols. After mapping each
         # category to its supercategory, this will collapse all rows
         # corresponding to each supercategory within the remaining
         # strata.
         aggregated_df = (
-            df.assign(**{category_col: lambda df: df[category_col].map(
-                category_to_supercategory)})
+            df.replace({category_col: category_to_supercategory})
             .pipe(self.marginalize, [], value_cols, reset_index,
                 func, args, **kwargs)
         )
