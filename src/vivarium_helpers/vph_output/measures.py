@@ -34,6 +34,9 @@ class VPHResults(VPHOutput):
         """Reformat transformed count data to make more sense."""
         clean_vph_output(self)
 
+    def table_names(self):
+        return [name for name in self if name != 'ops']
+
     def compute_dalys(self):
         # TODO: Handle the case where one of YLLs or YLDs
         # has 'all_causes' but the other doesn't, as in NO project
@@ -60,38 +63,45 @@ class VPHResults(VPHOutput):
         columns in these.
         """
         if measures is None:
-            table_names = ['deaths', 'ylls', 'ylds']
-            measures = table_names + ['dalys']
+            measures = ['deaths', 'ylls', 'ylds', 'dalys']
         else:
             measures = list_columns(measures)
-            table_names = list_columns(measures)
-            if not table_names: # table_names is a list, falsey if empty
-                raise ValueError('Must past at least one measure of burden.')
-            # Use YLLs and YLDs to compute DALYs if we haven't already
-            if 'dalys' in measures:# and 'dalys' not in self:
-                table_names.extend(['ylls', 'ylds'])
-                table_names = list(set(table_names))
-        print(table_names)
+        table_names = [measure for measure in measures if measure in self]
+        # Use YLLs and YLDs to compute DALYs if we haven't already
+        if 'dalys' in measures and 'dalys' not in table_names:
+            num_missing = 0
+            for measure in ['ylls', 'ylds']:
+                if measure in table_names:
+                    continue
+                elif measure in self:
+                    table_names.append(measure)
+                else:
+                    num_missing += 1
+            if num_missing == 2:
+                raise ValueError(
+                    "Cannot compute DALYs without one of YLLs, YLDs, or DALYs tables")
+        if not table_names: # table_names is a list, falsey if empty
+            raise ValueError(f"Insufficent data tables to compute measures {measures}")
+        # print(table_names)
         # Get intersection of all columns for stratification
+        # (this is necessary for Nutrition Optimization project because
+        #  ylds have more strata than ylls)
         columns_in_common = self[table_names[0]].columns
-        print(columns_in_common)
+        # print(columns_in_common)
         for table_name in table_names[1:]:
             columns_in_common = self[table_name].columns.intersection(
                 columns_in_common
             )
-            print(columns_in_common)
-        # columns_in_common = self.ylds.columns.intersection(
-        #     self.ylls.columns.intersection(
-        #         self.deaths.columns))
+            # print(columns_in_common)
         strata = columns_in_common.difference(
             [self.ops.value_col, *self.ops.index_cols])
-        print(columns_in_common)
+        # print(columns_in_common)
         burdens = [
             self.ops.stratify(self[table_name], strata)
             for table_name in table_names]
         burden = pd.concat(burdens, ignore_index=True)
-        print(burden.columns)
-        if 'dalys' in measures:# and 'dalys' not in self:
+        # print(burden.columns)
+        if 'dalys' in measures and 'dalys' not in table_names:
             ylls = burden.query("measure == 'ylls'")
             ylds = burden.query("measure == 'ylds'")
             # If we have comorbidity-adjusted all-cause YLDs, ensure
@@ -101,24 +111,17 @@ class VPHResults(VPHOutput):
                 all_cause_ylls = self.ops.marginalize(
                     ylls.assign(cause='all_causes'), [])
                 burden = pd.concat([burden, all_cause_ylls])
-                print('yll causes:', ylls.cause.unique())
-                # ylls = self.ops.aggregate_categories(
-                #     ylls, 'cause', {'all_causes': list(ylls['cause'].unique())},
-                #     append=True,
-                # )
+                # print('yll causes:', ylls.cause.unique())
             burden = self.ops.aggregate_categories(
                 burden, 'measure', {'dalys': ['ylls', 'ylds']}, append=True)
         burden = burden.query(f"measure in {measures}").reset_index(drop=True)
         return burden
 
     def compute_and_save_dalys(self):
-        self['dalys'] = self.compute_dalys()
+        self['dalys'] = self.get_burden('dalys')
 
     def compute_and_save_burden(self, measures=None):
         self['burden'] = self.get_burden(measures)
-
-    def table_names(self):
-        return [name for name in self if name != 'ops']
 
     def find_person_time_tables(self, colnames, exclude=None):
         """Generate person-time table names in this VPHResults object
@@ -181,7 +184,7 @@ class VPHResults(VPHOutput):
             strata=strata,
             **kwargs,
             # Remove 's' from the end of measure when naming the rate
-        ).assign(measure=f'{measure[:-1]}_rate')
+        ).assign(measure=f"{measure.removesuffix('s')}_rate")
         return burden_rate
 
     def get_prevalence(data, state_variable, strata, prefilter_query=None, **kwargs):
