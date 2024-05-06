@@ -411,7 +411,7 @@ class VPHOperator:
 
         # Ensure strata is an iterable of column names so it can be
         # concatenated with broadcast columns
-        strata = _ensure_iterable(strata, denominator)
+        strata = _ensure_iterable(strata)
         # Stratify numerator and denominator with broadcast columns included
         numerator = self.stratify(
             numerator,
@@ -448,6 +448,9 @@ class VPHOperator:
 
         return ratio
 
+    # TODO: Generalize the difference function to linear_combination,
+    # e.g. to take a weighted average of a 0% coverage scenario
+    # with a 100% coverage scenario
     def difference(
         self,
         measure:pd.DataFrame,
