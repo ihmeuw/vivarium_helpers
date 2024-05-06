@@ -85,7 +85,8 @@ def _ensure_iterable(colnames, default=None):
             colnames = [colnames]
         return colnames
 
-    if colnames is None: colnames = default
+    if colnames is None:
+        colnames = default
     return method1(colnames) # Go with the most restrictive method for now
 
 def _ensure_columns_not_levels(df, column_list=None):
@@ -150,3 +151,9 @@ def aggregate_mean_lower_upper(df_or_groupby, lower_rank=0.025, upper_rank=0.975
     def lower(x): return x.quantile(lower_rank)
     def upper(x): return x.quantile(upper_rank)
     return df_or_groupby.agg(['mean', lower, upper])
+
+def aggregate_with_join(strings, sep='|'):
+    """Combines an iterable of strings into a single string by calling
+    sep.join(strings).
+    """
+    return sep.join(strings)
