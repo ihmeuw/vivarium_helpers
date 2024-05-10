@@ -153,7 +153,13 @@ class VPHResults(VPHOutput):
                 f" (Excluded tables: {exclude})")
         return person_time_table_name
 
-    def get_burden_rate(self, measure, strata, prefilter_query=None, **kwargs):
+    def get_burden_rate(
+        self,
+        measure,
+        strata,
+        prefilter_query=None,
+        excluded_person_time_tables=None,
+        **kwargs):
         """Compute the burden rate, where burden is one of `deaths`,
         `ylls`, `ylds`, or `dalys`.
 
@@ -167,12 +173,17 @@ class VPHResults(VPHOutput):
         # measures in order to compute multiple rates simultaneously?
         # Maybe it would be better to create a 'burden' table with all 4
         # measures as described above, then broadcast over measure.
+        # if excluded_person_time_tables is notNone:
+        #     excluded_person_time_tables = []
         burden = self[measure]
         denominator_columns = list_columns(
             strata, kwargs.get('denominator_broadcast'), default=[])
         denominator_table_name = self.get_person_time_table_name(
-            denominator_columns, exclude='cause_state_person_time', error=True)
+            denominator_columns,
+            exclude=excluded_person_time_tables,
+            error=True)
         person_time = self[denominator_table_name]
+        print(measure, denominator_table_name)
         # Filter input dataframes if requested
         if prefilter_query:
             burden = burden.query(prefilter_query)
@@ -184,7 +195,10 @@ class VPHResults(VPHOutput):
             strata=strata,
             **kwargs,
             # Remove 's' from the end of measure when naming the rate
-        ).assign(measure=f"{measure.removesuffix('s')}_rate")
+        ).assign(
+            measure=f"{measure.removesuffix('s')}_rate",
+            prefilter=prefilter_query,
+        )
         return burden_rate
 
     def get_prevalence(data, state_variable, strata, prefilter_query=None, **kwargs):
