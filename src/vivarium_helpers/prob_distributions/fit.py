@@ -34,6 +34,24 @@ def l2_relative_error_loss(measured_val, true_val):
     return (((measured_val - true_val) /
         np.maximum(np.abs(true_val), 1e-8))**2).sum()
 
+# Code from Google AI
+def log_loss(y_true, y_pred, epsilon=1e-15):
+    """
+    Calculates the log loss (binary cross-entropy) between true and predicted values.
+
+    Args:
+        y_true (array-like): True labels (0 or 1).
+        y_pred (array-like): Predicted probabilities (values between 0 and 1).
+        epsilon (float, optional): A small value to prevent log(0) errors. Defaults to 1e-15.
+
+    Returns:
+        float: The calculated log loss.
+    """
+    y_true = np.asarray(y_true)
+    y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+    loss = -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+    return loss
+
 def arglist(*args, **kwargs):
     return (*args, kwargs)
 
