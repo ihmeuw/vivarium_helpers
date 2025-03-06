@@ -129,11 +129,15 @@ def sample_series_from_propensity(
         )
     if index is None and isinstance(propensity, (pd.Series, pd.DataFrame)):
         index = propensity.index
+
+    # Look for a name we can use for the returned Series
     if name is None:
         if isinstance(category_cdf, pd.DataFrame):
             name = category_cdf.columns.name
-        elif isinstance(category_cdf, pd.Series):
+        if name is None and isinstance(category_cdf, pd.Series):
             name = category_cdf.name
+        if name is None and isinstance(categories, (pd.Index, pd.Series)):
+            name = categories.name
     sampled_categories = pd.Series(
         sample_array,
         index=index,
