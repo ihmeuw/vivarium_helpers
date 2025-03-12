@@ -47,7 +47,9 @@ def log_loss(y_true, y_pred, epsilon=1e-15):
     Returns:
         float: The calculated log loss.
     """
-    y_true = np.asarray(y_true)
+    # Note: If one of y_true, y_pred is a pandas Series, NaN's will be
+    # ignored, which is wrong, so we convert to arrays to fix this
+    y_true, y_pred = map(np.asarray, (y_true, y_pred))
     y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
     loss = -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
     return loss
