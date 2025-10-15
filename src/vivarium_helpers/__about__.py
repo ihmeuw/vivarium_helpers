@@ -7,7 +7,7 @@ __title__ = "vivarium_helpers"
 __summary__ = "Tools maintained by the research side of the IHME simluation science team."
 __uri__ = "https://github.com/ihmeuw/vivarium_helpers"
 
-__version__ = "0.4.2"
+__version__ = "0.5.0-dev"
 
 __author__ = "Nathaniel Blair-Stahn, Beatrix Haddock"
 __email__ = "beatrixh@uw.com"
