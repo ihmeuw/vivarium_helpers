@@ -157,3 +157,29 @@ def aggregate_with_join(strings, sep='|'):
     sep.join(strings).
     """
     return sep.join(strings)
+
+def print_memory_usage(df, label=''):
+    """Print the memory usage of a dataframe in megabytes."""
+    print(df.memory_usage(deep=True).sum() / 1e6, 'MB', label)
+
+def constant_categorical(value, length, dtype=None):
+    """Create a pandas Categorical of the specified length with all
+    values equal to `value`. Creates the Categorical directly from codes
+    to avoid the unnecessarily large memory usage of creating a constant
+    list or Series of `value` first.
+    """
+    if dtype == 'category':
+        # Get the category code corresponding to value
+        code = dtype.categories.get_loc(value)
+    else:
+        # We'll create a Categorical with a single category, so the only
+        # code will be 0
+        code = 0
+         # If a non-categorical dtype was passed, set dtype to None when
+         # creating the Categorical from codes
+        dtype = None
+    # NOTE: Instead of creating a list, this could be made even more
+    # memory efficient by creating a NumPy array with an integer dtype
+    # of the minimum necessary size -- that would require computing the
+    # minimum number of bits necessary to represent the integer `length`
+    return pd.Categorical.from_codes([code] * length, dtype=dtype)
