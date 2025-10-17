@@ -409,6 +409,10 @@ class VPHOperator:
             # Really I think the 'measure' column should always have a
             # unique value, but currently that is not the case for
             # transition counts...
+            # TODO: Would it make sense to instead rename these columns
+            # 'numerator_measure' and 'denominator_measure' and add them
+            # to the numerator_broadcast and denominator_broadcast,
+            # respectively? I don't remember whether I've tried that...
             numerator_measure = '|'.join(numerator[measure_col].unique())
             denominator_measure = '|'.join(denominator[measure_col].unique())
 
@@ -439,8 +443,10 @@ class VPHOperator:
             ratio = ratio.dropna()
 
         if record_inputs:
-            ratio[f'numerator_{measure_col}'] = numerator_measure
-            ratio[f'denominator_{measure_col}'] = denominator_measure
+            ratio[f'numerator_{measure_col}'] = constant_categorical(
+                numerator_measure, len(ratio))
+            ratio[f'denominator_{measure_col}'] = constant_categorical(
+                denominator_measure, len(ratio))
             ratio['multiplier'] = multiplier
 
         if reset_index:
