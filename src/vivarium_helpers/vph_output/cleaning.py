@@ -24,7 +24,7 @@ def split_measure_and_transition_columns(transition_df):
             .assign(measure='transition_count') # Name the measure 'transition_count' rather than 'event_count'
            )
 
-def extract_transition_states(transition_df):
+def extract_transition_states(transition_df, transition_name_col='transition'):
     """Gets the 'from state' and 'to state' from the transitions in a transition count dataframe,
     after the transition has been put in its own 'transition' column by the `split_measure_and_transition_columns`
     function.
@@ -33,7 +33,7 @@ def extract_transition_states(transition_df):
     # Renaming the 'susceptible_to' states is a hack to deal with the fact there's not a unique string
     # separating the 'from' and 'to' states -- it should be '__to__' instead of '_to_' or something
     states_df = (
-        transition_df['transition']
+        transition_df[transition_name_col]
         .str.replace("susceptible_to", "without") # Remove word 'to' from all states so we can split transitions on '_to_'
         .str.extract(states_from_transition_pattern) # Create dataframe with 'from_state' and 'to_state' columns
         .apply(lambda col: col.str.replace("without", "susceptible_to")) # Restore original state names
