@@ -1,6 +1,9 @@
 import pandas as pd
 import collections
-from ..utils import _ensure_iterable, _ensure_columns_not_levels, list_columns
+from ..utils import (
+    _ensure_iterable, _ensure_columns_not_levels, list_columns,
+    print_memory_usage, constant_categorical
+)
 
 VALUE_COLUMN = 'value'
 DRAW_COLUMN  = 'input_draw'
@@ -463,19 +466,29 @@ class VPHOperator:
         rows for the minuend (that which is diminished) and subtrahend (that which is subtracted)
         are determined by the values in identifier_col
         """
+        print_memory_usage(measure, 'measure')
         if minuend_id is not None:
             minuend = measure[measure[identifier_col] == minuend_id]
             if subtrahend_id is not None:
+                # Both minuend and subtrahend specified, no broadcasting necessary
                 subtrahend = measure[measure[identifier_col] == subtrahend_id]
             else:
+                # subtrahend is None, minuend is not
                 # Use all values not equal to minuend_id for subtrahend (minuend will be broadcast over subtrahend)
                 subtrahend = measure[measure[identifier_col] != minuend_id]
         elif subtrahend_id is not None:
+            # minuend is None, subtrahend is not
             subtrahend = measure[measure[identifier_col] == subtrahend_id]
             # Use all values not equal to subtrahend_id for minuend (subtrahend will be broadcast over minuend)
             minuend = measure[measure[identifier_col] != subtrahend_id]
         else:
             raise ValueError("At least one of `minuend_id` and `subtrahend_id` must be specified")
+
+        print_memory_usage(minuend, 'minuend')
+        print_memory_usage(subtrahend, 'subtrahend')
+
+        # print(minuend.memory_usage(deep=True))
+        # print(subtrahend.memory_usage(deep=True))
 
         # Columns to match when subtracting subtrahend from minuend
         # Oh, I just noticed that I could use the Index.difference() method here, which I was unaware of before...
@@ -485,22 +498,54 @@ class VPHOperator:
         minuend = minuend.set_index(index_columns)
         subtrahend = subtrahend.set_index(index_columns)
 
+        # return minuend.index, subtrahend.index
+
+        print_memory_usage(minuend, 'minuend re-indexed')
+        print_memory_usage(subtrahend, 'subtrahend re-indexed')
+
         # Add the identifier column to the index of the larger dataframe
         # (or default to the subtrahend dataframe if neither needs broadcasting).
         if minuend_id is None:
+            # Broadcast minuend over minuend
             minuend.set_index(identifier_col, append=True, inplace=True)
+            # Explicit reindexing is necessary to preserve Categoricals
+            # in the index when broadcasting
+            subtrahend = subtrahend.reindex(minuend.index)
         else:
+            # Broadcast subtrahend over subtrahend (or no broadcasting necessary)
             subtrahend.set_index(identifier_col, append=True, inplace=True)
+            # Explicit reindexing is necessary to preserve Categoricals
+            # in the index when broadcasting
+            minuend = minuend.reindex(subtrahend.index)
+
+        # print_memory_usage(minuend, 'minuend re-indexed')
+        # print_memory_usage(subtrahend, 'subtrahend re-indexed')
+
+        # return minuend, subtrahend
 
         # Subtract DataFrames, not Series, because Series will drop the identifier column from the index
         # if there is no broadcasting. (Behavior for Series and DataFrames is different - is this a
         # feature or a bug in pandas?)
         difference = minuend[[self.value_col]] - subtrahend[[self.value_col]]
-        difference = difference.reset_index()
+        print_memory_usage(difference, 'difference')
+        # return difference
+        difference.reset_index(inplace=True)
+        print_memory_usage(difference, 'difference with reset index')
 
         # Add a column to specify what was subtracted from (the minuend) or what was subtracted (the subtrahend)
-        colname, value = ('subtracted_from', minuend_id) if minuend_id is not None else ('subtracted_value', subtrahend_id)
-        difference.insert(difference.columns.get_loc(identifier_col)+1, colname, value)
+        colname, value = (
+            ('subtracted_from', minuend_id)
+            if minuend_id is not None
+            else ('subtracted_value', subtrahend_id)
+        )
+        # Create a constant Categorical column containing the
+        # appropriate ID
+        value = constant_categorical(
+            value, len(difference), dtype=difference[identifier_col].dtype)
+        difference.insert(
+            difference.columns.get_loc(identifier_col) + 1, colname, value)
+
+        print_memory_usage(difference, 'final difference')
 
         return difference
 
