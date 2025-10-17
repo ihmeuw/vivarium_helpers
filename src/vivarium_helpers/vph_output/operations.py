@@ -302,9 +302,10 @@ class VPHOperator:
         numerator: pd.DataFrame,
         denominator: pd.DataFrame,
         strata,
-        multiplier=1,
+        prefilter_query=None,
         numerator_broadcast=None,
         denominator_broadcast=None,
+        multiplier=1,
         value_col=None,
         index_cols=None,
         measure_col=None,
@@ -326,6 +327,13 @@ class VPHOperator:
 
         strata : list of column names present in the numerator and denominator (also accepts a single column name)
             The stratification variables for the ratio or rate.
+
+        prefilter_query : str or None, default None
+            A query string to pass to DataFrame.query() for both the
+            numerator and denominator before taking the ratio. This is
+            useful if you're interested in computing a ratio for a
+            subset of the full population (e.g., only certain age
+            groups).
 
         multiplier : int or float, default 1
             Multiplier for the numerator, typically a power of 10,
@@ -386,6 +394,10 @@ class VPHOperator:
             value_col = self.value_col
         if measure_col is None:
             measure_col = self.measure_col
+        # Filter both the numerator and denominator if requested
+        if prefilter_query is not None:
+            numerator = numerator.query(prefilter_query)
+            denominator = denominator.query(prefilter_query)
         # Ensure that index columns in numerator and denominator are columns not index levels,
         # to guarantee that _ensure_iterable will work and df[measure_col] will work.
         numerator = _ensure_columns_not_levels(numerator)
