@@ -168,16 +168,12 @@ def constant_categorical(value, length, dtype=None):
     to avoid the unnecessarily large memory usage of creating a constant
     list or Series of `value` first.
     """
-    if dtype == 'category':
-        # Get the category code corresponding to value
-        code = dtype.categories.get_loc(value)
-    else:
-        # We'll create a Categorical with a single category, so the only
-        # code will be 0
-        code = 0
-         # If a non-categorical dtype was passed, set dtype to None when
-         # creating the Categorical from codes
-        dtype = None
+    if dtype != 'category':
+        # If a non-categorical dtype was passed, use a dtype with a
+         # single category when creating the Categorical from codes
+        dtype = pd.CategoricalDtype([value])
+    # Get the category code corresponding to value
+    code = dtype.categories.get_loc(value)
     # NOTE: Instead of creating a list, this could be made even more
     # memory efficient by creating a NumPy array with an integer dtype
     # of the minimum necessary size -- that would require computing the
