@@ -10,6 +10,7 @@ class VPHResults(VPHOutput):
         self,
         mapping=(),
         /,
+        ops: VPHOperator|None = None,
         value_col=None,
         draw_col=None,
         scenario_col=None,
@@ -19,7 +20,7 @@ class VPHResults(VPHOutput):
         **kwargs,
     ):
         super().__init__(mapping, **kwargs)
-        self.ops = VPHOperator(
+        self.ops = ops or VPHOperator(
             value_col,
             draw_col,
             scenario_col,
