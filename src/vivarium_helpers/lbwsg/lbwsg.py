@@ -21,7 +21,7 @@ if importlib.util.find_spec('gbd_mapping') is not None:
     gbd_mapping = importlib.import_module('gbd_mapping')
 if importlib.util.find_spec('db_queries') is not None:
     get_ids = importlib.import_module('db_queries').get_ids
-if importlib.util.find_spec('get_draws.api') is not None:
+if importlib.util.find_spec('get_draws') is not None and importlib.util.find_spec('get_draws.api') is not None:
     get_draws = importlib.import_module('get_draws.api').get_draws
 
 GLOBAL_LOCATION_ID = 1
@@ -413,8 +413,10 @@ def get_category_descriptions(
     lbwsg_exposure_df, source='get_ids', validate=True):
     if lbwsg_exposure_df is None:
         cats = pd.Series(CATEGORY_TO_MEID_GBD_2019, name='modelable_entity_id')
-    else:
+    elif source == 'get_ids':
         cats = get_category_to_meid_map(lbwsg_exposure_df, validate=validate)
+    else:
+        cats = lbwsg_exposure_df.reset_index()[['parameter']].drop_duplicates().set_index('parameter')
     # The "description" is the modelable entity name for the category
     if source=='get_ids':
         descriptions = get_ids('modelable_entity')
