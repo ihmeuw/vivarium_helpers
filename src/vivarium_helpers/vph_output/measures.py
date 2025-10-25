@@ -15,6 +15,7 @@ class VPHResults(VPHOutput):
         draw_col=None,
         scenario_col=None,
         measure_col=None,
+        location_col: str|bool=False,
         index_cols=None,
         # record_dalys=True,
         **kwargs,
@@ -25,7 +26,8 @@ class VPHResults(VPHOutput):
             draw_col,
             scenario_col,
             measure_col,
-            index_cols
+            location_col,
+            index_cols,
         )
         self._clean_vph_output()
         # if record_dalys:
