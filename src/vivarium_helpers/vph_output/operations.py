@@ -302,9 +302,9 @@ class VPHOperator:
         numerator: pd.DataFrame,
         denominator: pd.DataFrame,
         strata,
-        prefilter_query=None,
         numerator_broadcast=None,
         denominator_broadcast=None,
+        prefilter_query=None,
         multiplier=1,
         value_col=None,
         index_cols=None,
@@ -327,13 +327,6 @@ class VPHOperator:
 
         strata : list of column names present in the numerator and denominator (also accepts a single column name)
             The stratification variables for the ratio or rate.
-
-        prefilter_query : str or None, default None
-            A query string to pass to DataFrame.query() for both the
-            numerator and denominator before taking the ratio. This is
-            useful if you're interested in computing a ratio for a
-            subset of the full population (e.g., only certain age
-            groups).
 
         multiplier : int or float, default 1
             Multiplier for the numerator, typically a power of 10,
@@ -362,6 +355,13 @@ class VPHOperator:
 
         denominator_broadcast : list of column names present in the denominator, or None
             Additional columns in the numerator by which to broadcast.
+
+        prefilter_query : str or None, default None
+            A query string to pass to DataFrame.query() for both the
+            numerator and denominator before taking the ratio. This is
+            useful if you're interested in computing a ratio for a
+            subset of the full population (e.g., only certain age
+            groups).
 
         value_col : single column name (a singleton list is also accepted), default VALUE_COLUMN
             The column where the values in the numerator and denominator dataframes are stored.
