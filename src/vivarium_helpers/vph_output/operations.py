@@ -5,10 +5,14 @@ from ..utils import (
     print_memory_usage, constant_categorical
 )
 
+# TODO: Maybe put column names in an Enum
 VALUE_COLUMN = 'value'
 DRAW_COLUMN  = 'input_draw'
 SCENARIO_COLUMN = 'scenario'
 MEASURE_COLUMN = 'measure'
+# FIXME: location column should be accessible in loading.py as well --
+# maybe I need to put column names in a separate module
+LOCATION_COLUMN = 'location'
 
 INDEX_COLUMNS = [DRAW_COLUMN, SCENARIO_COLUMN]
 
@@ -22,6 +26,7 @@ class VPHOperator:
         draw_col=None,
         scenario_col=None,
         measure_col=None,
+        location_col: str|bool=False,
         index_cols=None
     ):
         self.value_col = VALUE_COLUMN if value_col is None else value_col
@@ -30,9 +35,22 @@ class VPHOperator:
             SCENARIO_COLUMN if scenario_col is None else scenario_col)
         self.measure_col = (
             MEASURE_COLUMN if measure_col is None else measure_col)
-        self.index_cols = (
-            [self.draw_col, self.scenario_col] if index_cols is None
-            else index_cols)
+        if index_cols is not None:
+            # Make a copy of index columns to avoid mutating something
+            # we shouldn't
+            self.index_cols = [*_ensure_iterable(index_cols)]
+        else:
+            self.index_cols = [self.draw_col, self.scenario_col]
+            match location_col:
+                case True:
+                    # Add default location column to index
+                    self.index_cols.append(LOCATION_COLUMN)
+                case False:
+                    # location column is not in the index
+                    pass
+                case _:
+                    # Add specified location column to the index
+                    self.index_cols.append(location_col)
 
     def set_index_columns(self, index_columns:list)->None:
         """
