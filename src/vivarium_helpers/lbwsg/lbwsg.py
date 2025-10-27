@@ -8,7 +8,7 @@ https://github.com/ihmeuw/vivarium_public_health/blob/master/src/vivarium_public
 import pandas as pd
 import numpy as np
 import re
-from typing import Tuple#, Dict, Iterable
+from typing import Literal, Tuple
 from pandas.api.types import CategoricalDtype
 from scipy.interpolate import interp2d, griddata, RectBivariateSpline
 
@@ -21,7 +21,7 @@ if importlib.util.find_spec('gbd_mapping') is not None:
     gbd_mapping = importlib.import_module('gbd_mapping')
 if importlib.util.find_spec('db_queries') is not None:
     get_ids = importlib.import_module('db_queries').get_ids
-if importlib.util.find_spec('get_draws.api') is not None:
+if importlib.util.find_spec('get_draws') is not None and importlib.util.find_spec('get_draws.api') is not None:
     get_draws = importlib.import_module('get_draws.api').get_draws
 
 GLOBAL_LOCATION_ID = 1
@@ -45,7 +45,7 @@ TMREL_CATEGORIES = ('cat53', 'cat54', 'cat55', 'cat56')
 # OUTSIDE_BOUNDS_CATEGORY = 'cat_outside_bounds'
 
 # The dictionary below was created with the following code:
-# CATEGORY_TO_MEID_GBD_2019 = (
+# CATEGORY_TO_MEID_GBD_2019_2021 = (
 #     lbwsg_exposure_nigeria_birth_male
 #      .dropna()
 #      .set_index('parameter')
@@ -58,7 +58,7 @@ TMREL_CATEGORIES = ('cat53', 'cat54', 'cat55', 'cat56')
 
 # TODO: Perhaps store the category descriptions here as well
 # Modelable entity IDs for LBWSG categories
-CATEGORY_TO_MEID_GBD_2019 = {
+CATEGORY_TO_MEID_GBD_2019_2021 = {
  'cat2': 10755,
  'cat8': 10761,
  'cat10': 10763,
@@ -137,7 +137,7 @@ def catnames_to_ints(catnames):
 def get_lbwsg_category_order(categories=None):
     """Returns LBWSG categories, sorted numerically."""
     if categories is None:
-        categories = CATEGORY_TO_MEID_GBD_2019.keys()
+        categories = CATEGORY_TO_MEID_GBD_2019_2021.keys()
     return sorted(categories, key=catname_to_int)
 
 def get_lbwsg_category_dtype(categories=None):
@@ -404,38 +404,36 @@ def get_category_to_meid_map(lbwsg_exposure_df, validate=True):
         .sort_index(key=catnames_to_ints)
     )
     if validate:
-        # compare against GBD 2019 dict
-        assert cat_to_meid.to_dict() == CATEGORY_TO_MEID_GBD_2019, \
+        # compare against GBD 2019-2021 dict
+        assert cat_to_meid.to_dict() == CATEGORY_TO_MEID_GBD_2019_2021, \
             f"Category MEIDs don't match GBD 2019 data!\n{cat_to_meid}"
     return cat_to_meid
 
 def get_category_descriptions(
-    lbwsg_exposure_df, source='get_ids', validate=True):
-    if lbwsg_exposure_df is None:
-        cats = pd.Series(CATEGORY_TO_MEID_GBD_2019, name='modelable_entity_id')
-    else:
-        cats = get_category_to_meid_map(lbwsg_exposure_df, validate=validate)
+    source: Literal['gbd_mapping', 'get_ids'] = 'gbd_mapping',
+):
     # The "description" is the modelable entity name for the category
-    if source=='get_ids':
-        descriptions = get_ids('modelable_entity')
-    else:
-        if source=='gbd_mapping':
-            descriptions = gbd_mapping.risk_factors.low_birth_weight_and_short_gestation.categories.to_dict()
-        # Assume source is a dictionary of categories to descriptions (i.e. modelable entity names)
+    if source == 'gbd_mapping':
+        descriptions = gbd_mapping.risk_factors.low_birth_weight_and_short_gestation.categories.to_dict()
+        # Assume descriptions is a dictionary of categories to descriptions (i.e. modelable entity names)
         descriptions = (pd.Series(descriptions, name='modelable_entity_name')
                         .rename_axis('lbwsg_category').reset_index())
-    cats = (
-        cats
-        .rename_axis('lbwsg_category')
-        .reset_index()
-        # merge on 'modelable_entity_id' if source=='get_ids',
-        # on 'lbwsg_category' if source=='gbd_mapping'
-        .merge(descriptions)
-        .assign(lbwsg_category=cats.index.astype(
-            get_lbwsg_category_dtype(cats.index)))
+    elif source == 'get_ids':
+        # get_ids was originally added as an option here because gbd_mapping was not up-to-date.
+        # It requires maintaining the hardcoded dictionary above for identifying which modelable entities
+        # are LBWSG categories.
+        descriptions = pd.Series(CATEGORY_TO_MEID_GBD_2019_2021, name="modelable_entity_id").rename_axis("lbwsg_category").reset_index()
+        descriptions = descriptions.merge(
+            get_ids('modelable_entity'),
+            on="modelable_entity_id",
+        )
+    else:
+        raise ValueError(f"Unknown source {source}")
+
+    descriptions['lbwsg_category'] = descriptions['lbwsg_category'].astype(
+        get_lbwsg_category_dtype(descriptions['lbwsg_category'])
     )
-    # cats['lbwsg_category'] = cats['lbwsg_category'].astype(get_lbwsg_category_dtype(cats['lbwsg_category']))
-    return cats
+    return descriptions
 
 def get_intervals_from_name(name: str) -> Tuple[pd.Interval, pd.Interval]:
     """Converts a LBWSG category name to a pair of intervals.
@@ -447,9 +445,25 @@ def get_intervals_from_name(name: str) -> Tuple[pd.Interval, pd.Interval]:
     return (pd.Interval(numbers_only[0], numbers_only[1], closed='left'),
             pd.Interval(numbers_only[2], numbers_only[3], closed='left'))
 
-def get_category_data(lbwsg_exposure_df, source='get_ids'):
+def get_category_data(
+    source: Literal['gbd_mapping', 'get_ids'] = 'gbd_mapping',
+) -> pd.DataFrame:
+    """
+    Get low birthweight and short gestation (LBWSG) categories, including:
+    - modelable_entity_name (longform, human-readable description)
+    - lbwsg_category (short name, e.g. "cat1")
+    - gestational age (GA) and birthweight (BW) start, end, and midpoint
+
+    If `source` is gbd_mapping, this information comes from the GBD mapping package.
+    If `source` is get_ids, this information comes from a mix of the get_ids central
+    function and a hard-coded dictionary here in vivarium_helpers of modelable entity IDs -> short category names.
+    This hardcoded dictionary has only been maintained up to GBD 2021, and may be incorrect
+    for later rounds.
+
+    If `source` is get_ids, modelable entity IDs will be included in the result.
+    """
     # Get the interval descriptions (modelable entity names) for the categories
-    cat_df = get_category_descriptions(lbwsg_exposure_df, source)
+    cat_df = get_category_descriptions(source)
 
     # Extract the endpoints of the gestational age and birthweight intervals into 4 separate columns
     extraction_regex = (
@@ -479,6 +493,23 @@ def get_category_data(lbwsg_exposure_df, source='get_ids'):
     cat_df['ga'], cat_df['ga_width'], cat_df['ga_midpoint'] = interval_width_midpoint(cat_df.ga_start, cat_df.ga_end, cat_df.ga_closed)
     cat_df['bw'], cat_df['bw_width'], cat_df['bw_midpoint'] = interval_width_midpoint(cat_df.bw_start, cat_df.bw_end, cat_df.bw_closed)
     return cat_df
+
+def validate_exposure_matches_category_data(lbwsg_exposure_df: pd.DataFrame, category_data: pd.DataFrame = None) -> None:
+    """
+    Validates that the set of categories in exposure data matches the categories in metadata.
+
+    `lbwsg_exposure_df` is a dataframe from get_draws or from vivarium_inputs/an artifact.
+    The only requirement is that it contain a `parameter` column
+    or index level containing short names, e.g. "cat2".
+
+    `category_data` should be the output of `get_category_data` (leave as None to automatically call that function with the default arguments),
+    or otherwise a list of categories (as a dataframe with a
+    `lbwsg_category` column containing short names, e.g. "cat2").
+    """
+    if category_data is None:
+        category_data = get_category_data()
+
+    assert set(category_data['lbwsg_category']) == set(lbwsg_exposure_df.reset_index()['parameter'])
 
 def get_category_neighbors(cat_df=None):
     """Returns a dataframe indexed by LBWSG category, with each row showing the 4 neighboring categories.
