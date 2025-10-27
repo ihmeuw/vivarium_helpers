@@ -42,12 +42,12 @@ class VPHOperator:
         else:
             self.index_cols = [self.draw_col, self.scenario_col]
             match location_col:
-                case True:
-                    # Add default location column to index
-                    self.index_cols.append(LOCATION_COLUMN)
                 case False:
                     # location column is not in the index
                     pass
+                case True:
+                    # Add default location column to index
+                    self.index_cols.append(LOCATION_COLUMN)
                 case _:
                     # Add specified location column to the index
                     self.index_cols.append(location_col)
@@ -327,8 +327,9 @@ class VPHOperator:
         value_col=None,
         index_cols=None,
         measure_col=None,
-        dropna=False,
+        measure=None,
         record_inputs=None,
+        dropna=False,
         reset_index=True,
     )-> pd.DataFrame:
         """
@@ -388,14 +389,17 @@ class VPHOperator:
             The column indicating the type of measure stored in the numerator and denominator dataframes.
             Not used if `record_inputs` is False.
 
-        dropna : boolean, default False
-             Whether to drop rows with NaN values in the result, namely
-             if division by 0 occurs because of an empty stratum in the denominator.
+        measure: str or None, default None
+            A measure to assign to the measure column of this ratio.
 
         record_inputs : boolean or None, default None
             Whether to record the multiplier and the numeraor's and denominator's measures in the output.
             If None, defaults to the value of `reset_index` to facilitate performing further operations with
             the ratio if reset_index == False.
+
+        dropna : boolean, default False
+             Whether to drop rows with NaN values in the result, namely
+             if division by 0 occurs because of an empty stratum in the denominator.
 
         reset_index : boolean, default True
             Whether to move index levels back into the dataframe's columns after computing the ratio.
@@ -471,6 +475,10 @@ class VPHOperator:
             # Note: inplace=True is deprecated because .dropna() changes
             # the shape of data and never actually operates in place
             ratio = ratio.dropna()
+
+        # Record specified measure in measure column
+        if measure is not None:
+            ratio[measure_col] = constant_categorical(measure, len(ratio))
 
         if record_inputs:
             ratio[f'numerator_{measure_col}'] = constant_categorical(
