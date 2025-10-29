@@ -1,6 +1,7 @@
 import collections
 import re
 import pandas as pd
+import numpy as np
 
 class FrozenAttributeMapping(collections.abc.Mapping):
     """Implementation of the Mapping abstract base class that
@@ -209,8 +210,8 @@ def constant_categorical(value, length, dtype=None):
         dtype = pd.CategoricalDtype([value])
     # Get the category code corresponding to value
     code = dtype.categories.get_loc(value)
-    # NOTE: Instead of creating a list, this could be made even more
-    # memory efficient by creating a NumPy array with an integer dtype
-    # of the minimum necessary size -- that would require computing the
-    # minimum number of bits necessary to represent the integer `length`
-    return pd.Categorical.from_codes([code] * length, dtype=dtype)
+    # NOTE: This could be made even more memory efficient by creating a
+    # NumPy array with an integer dtype of the minimum necessary size --
+    # that would require computing the minimum number of bits necessary
+    # to represent the integers 0, 1, ..., len(dtype.categories) - 1.
+    return pd.Categorical.from_codes(np.full(length, code), dtype=dtype)
