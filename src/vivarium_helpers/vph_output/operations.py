@@ -2,7 +2,7 @@ import pandas as pd
 import collections
 from ..utils import (
     _ensure_iterable, _ensure_columns_not_levels, list_columns,
-    print_memory_usage, constant_categorical
+    print_memory_usage, constant_categorical, lower, upper
 )
 
 # TODO: Maybe put column names in an Enum
@@ -498,6 +498,8 @@ class VPHOperator:
     # TODO: Generalize the difference function to linear_combination,
     # e.g. to take a weighted average of a 0% coverage scenario
     # with a 100% coverage scenario
+    # TODO: Maybe add an option to *not* record the "subtracted from" or
+    # "subtracted value" column?
     def difference(
         self,
         measure:pd.DataFrame,
@@ -626,17 +628,48 @@ class VPHOperator:
     #     averted.insert(averted.columns.get_loc(scenario_col)+1, 'relative_to', baseline_scenario)
         return averted
 
-    def describe(self, df, **describe_kwargs):
+    def summarize_draws(
+            self,
+            df,
+            agg_func=['mean', lower, upper],
+            reset_index=False,
+            args=(),
+            **kwargs,
+        ):
         """Describes the distribution of df's values across draws.
         This is a wrapper function for DataFrameGroupBy.describe(),
         with `df` grouped by everything except draw and value.
         """
-        if 'percentiles' not in describe_kwargs:
-            describe_kwargs['percentiles'] = [.025, .975]
         excluded_cols = [self.draw_col, self.value_col]
         df = _ensure_columns_not_levels(df, excluded_cols)
         groupby_cols = df.columns.difference(excluded_cols).to_list()
-        return df.groupby(groupby_cols)[self.value_col].describe(**describe_kwargs)
+        summary = (
+            df
+            .groupby(
+                groupby_cols, observed=True, dropna=False,
+                # FIXME: as_index is not working, I don't know why
+                as_index=(not reset_index))
+            [self.value_col]
+            .agg(agg_func, *args, **kwargs)
+        )
+        return summary
+
+    def describe(self, df, *args, **kwargs):
+        """Describes the distribution of df's values across draws.
+        This is a wrapper function for DataFrameGroupBy.describe(),
+        with `df` grouped by everything except draw and value.
+        """
+        # if 'percentiles' not in describe_kwargs:
+        #     describe_kwargs['percentiles'] = [.025, .975]
+        # excluded_cols = [self.draw_col, self.value_col]
+        # df = _ensure_columns_not_levels(df, excluded_cols)
+        # groupby_cols = df.columns.difference(excluded_cols).to_list()
+        # return
+        # df.groupby(groupby_cols)[self.value_col].describe(**describe_kwargs)
+        reset_index=kwargs.pop('reset_index', False)
+        described = self.summarize_draws(df, 'describe', reset_index, args,
+                                         **kwargs)
+        return described
 
     def assert_values_equal(self, df1, df2, **kwargs):
         """Test whether the value columns of df1 and df2 are equal, using all other columns as the index,
