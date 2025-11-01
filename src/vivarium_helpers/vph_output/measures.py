@@ -107,12 +107,16 @@ class VPHResults(VPHOutput):
         if 'dalys' in measures and 'dalys' not in table_names:
             ylls = burden.query("measure == 'ylls'")
             ylds = burden.query("measure == 'ylds'")
+            # FIXME: Define the cause column somewhere else that makes
+            # sense, and deal with different column names in older
+            # Vivarium models
+            cause_col = 'entity' # Used to be 'cause'
             # If we have comorbidity-adjusted all-cause YLDs, ensure
             # that we also have all-cause YLLs so all-cause DALYs will
             # be correct
-            if 'all_causes' in np.setdiff1d(ylds['cause'], ylls['cause']):
+            if 'all_causes' in np.setdiff1d(ylds[cause_col], ylls[cause_col]):
                 all_cause_ylls = self.ops.marginalize(
-                    ylls.assign(cause='all_causes'), [])
+                    ylls.assign(**{cause_col: 'all_causes'}), [])
                 burden = pd.concat([burden, all_cause_ylls])
                 # print('yll causes:', ylls.cause.unique())
             burden = self.ops.aggregate_categories(
