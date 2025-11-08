@@ -174,6 +174,24 @@ def convert_to_categorical(
     else:
         return None
 
+def constant_categorical(value, length, dtype=None):
+    """Create a pandas Categorical of the specified length with all
+    values equal to `value`. Creates the Categorical directly from codes
+    to avoid the unnecessarily large memory usage of creating a constant
+    list or Series of `value` first.
+    """
+    if dtype != 'category':
+        # If a non-categorical dtype was passed, use a dtype with a
+         # single category when creating the Categorical from codes
+        dtype = pd.CategoricalDtype([value])
+    # Get the category code corresponding to value
+    code = dtype.categories.get_loc(value)
+    # NOTE: This could be made even more memory efficient by creating a
+    # NumPy array with an integer dtype of the minimum necessary size --
+    # that would require computing the minimum number of bits necessary
+    # to represent the integers 0, 1, ..., len(dtype.categories) - 1.
+    return pd.Categorical.from_codes(np.full(length, code), dtype=dtype)
+
 def get_mean_lower_upper(described_data, colname_mapper={'mean':'mean', '2.5%':'lower', '97.5%':'upper'}):
         """
         Gets the mean, lower, and upper value from `described_data` DataFrame, which is assumed to have
@@ -203,21 +221,3 @@ def aggregate_with_join(strings, sep='|'):
 def print_memory_usage(df, label=''):
     """Print the memory usage of a dataframe in megabytes."""
     print(df.memory_usage(deep=True).sum() / 1e6, 'MB', label)
-
-def constant_categorical(value, length, dtype=None):
-    """Create a pandas Categorical of the specified length with all
-    values equal to `value`. Creates the Categorical directly from codes
-    to avoid the unnecessarily large memory usage of creating a constant
-    list or Series of `value` first.
-    """
-    if dtype != 'category':
-        # If a non-categorical dtype was passed, use a dtype with a
-         # single category when creating the Categorical from codes
-        dtype = pd.CategoricalDtype([value])
-    # Get the category code corresponding to value
-    code = dtype.categories.get_loc(value)
-    # NOTE: This could be made even more memory efficient by creating a
-    # NumPy array with an integer dtype of the minimum necessary size --
-    # that would require computing the minimum number of bits necessary
-    # to represent the integers 0, 1, ..., len(dtype.categories) - 1.
-    return pd.Categorical.from_codes(np.full(length, code), dtype=dtype)
