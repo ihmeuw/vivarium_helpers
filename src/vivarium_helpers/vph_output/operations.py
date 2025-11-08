@@ -552,13 +552,13 @@ class VPHOperator:
         # Add the identifier column to the index of the larger dataframe
         # (or default to the subtrahend dataframe if neither needs broadcasting).
         if minuend_id is None:
-            # Broadcast minuend over minuend
+            # Broadcast subtrahend over minuend
             minuend.set_index(identifier_col, append=True, inplace=True)
             # Explicit reindexing is necessary to preserve Categoricals
             # in the index when broadcasting
             subtrahend = subtrahend.reindex(minuend.index)
         else:
-            # Broadcast subtrahend over subtrahend (or no broadcasting necessary)
+            # Broadcast minuend over subtrahend (or no broadcasting necessary)
             subtrahend.set_index(identifier_col, append=True, inplace=True)
             # Explicit reindexing is necessary to preserve Categoricals
             # in the index when broadcasting
