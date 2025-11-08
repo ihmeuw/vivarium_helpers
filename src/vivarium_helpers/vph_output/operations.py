@@ -35,22 +35,21 @@ class VPHOperator:
             SCENARIO_COLUMN if scenario_col is None else scenario_col)
         self.measure_col = (
             MEASURE_COLUMN if measure_col is None else measure_col)
-        if index_cols is not None:
+        self.index_cols = (
+            [self.draw_col, self.scenario_col] if index_cols is None
             # Make a copy of index columns to avoid mutating something
             # we shouldn't
-            self.index_cols = [*_ensure_iterable(index_cols)]
-        else:
-            self.index_cols = [self.draw_col, self.scenario_col]
-            match location_col:
-                case False:
-                    # location column is not in the index
-                    pass
-                case True:
-                    # Add default location column to index
-                    self.index_cols.append(LOCATION_COLUMN)
-                case _:
-                    # Add specified location column to the index
-                    self.index_cols.append(location_col)
+            else [*_ensure_iterable(index_cols)])
+        if location_col is True:
+            # Set location column to the default
+            location_col = LOCATION_COLUMN
+        if location_col is not False:
+            # If location column is valid, add it to the index
+            if location_col in self.index_cols:
+                raise ValueError(
+                    "Index columns already contain location column")
+            else:
+                self.index_cols.append(location_col)
 
     def set_index_columns(self, index_columns:list)->None:
         """
