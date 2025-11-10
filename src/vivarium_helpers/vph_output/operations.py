@@ -1,11 +1,18 @@
 import pandas as pd
 import collections
-from ..utils import _ensure_iterable, _ensure_columns_not_levels, list_columns
+from ..utils import (
+    _ensure_iterable, _ensure_columns_not_levels, list_columns,
+    print_memory_usage, constant_categorical, lower, upper
+)
 
+# TODO: Maybe put column names in an Enum
 VALUE_COLUMN = 'value'
 DRAW_COLUMN  = 'input_draw'
 SCENARIO_COLUMN = 'scenario'
 MEASURE_COLUMN = 'measure'
+# FIXME: location column should be accessible in loading.py as well --
+# maybe I need to put column names in a separate module
+LOCATION_COLUMN = 'location'
 
 INDEX_COLUMNS = [DRAW_COLUMN, SCENARIO_COLUMN]
 
@@ -19,6 +26,7 @@ class VPHOperator:
         draw_col=None,
         scenario_col=None,
         measure_col=None,
+        location_col: str|bool=False,
         index_cols=None
     ):
         self.value_col = VALUE_COLUMN if value_col is None else value_col
@@ -29,7 +37,19 @@ class VPHOperator:
             MEASURE_COLUMN if measure_col is None else measure_col)
         self.index_cols = (
             [self.draw_col, self.scenario_col] if index_cols is None
-            else index_cols)
+            # Make a copy of index columns to avoid mutating something
+            # we shouldn't
+            else [*_ensure_iterable(index_cols)])
+        if location_col is True:
+            # Set location column to the default
+            location_col = LOCATION_COLUMN
+        if location_col is not False:
+            # If location column is valid, add it to the index
+            if location_col in self.index_cols:
+                raise ValueError(
+                    "Index columns already contain location column")
+            else:
+                self.index_cols.append(location_col)
 
     def set_index_columns(self, index_columns:list)->None:
         """
@@ -299,14 +319,16 @@ class VPHOperator:
         numerator: pd.DataFrame,
         denominator: pd.DataFrame,
         strata,
-        multiplier=1,
         numerator_broadcast=None,
         denominator_broadcast=None,
+        prefilter_query=None,
+        multiplier=1,
         value_col=None,
         index_cols=None,
         measure_col=None,
-        dropna=False,
+        measure=None,
         record_inputs=None,
+        dropna=False,
         reset_index=True,
     )-> pd.DataFrame:
         """
@@ -352,6 +374,13 @@ class VPHOperator:
         denominator_broadcast : list of column names present in the denominator, or None
             Additional columns in the numerator by which to broadcast.
 
+        prefilter_query : str or None, default None
+            A query string to pass to DataFrame.query() for both the
+            numerator and denominator before taking the ratio. This is
+            useful if you're interested in computing a ratio for a
+            subset of the full population (e.g., only certain age
+            groups).
+
         value_col : single column name (a singleton list is also accepted), default VALUE_COLUMN
             The column where the values in the numerator and denominator dataframes are stored.
 
@@ -359,14 +388,17 @@ class VPHOperator:
             The column indicating the type of measure stored in the numerator and denominator dataframes.
             Not used if `record_inputs` is False.
 
-        dropna : boolean, default False
-             Whether to drop rows with NaN values in the result, namely
-             if division by 0 occurs because of an empty stratum in the denominator.
+        measure: str or None, default None
+            A measure to assign to the measure column of this ratio.
 
         record_inputs : boolean or None, default None
             Whether to record the multiplier and the numeraor's and denominator's measures in the output.
             If None, defaults to the value of `reset_index` to facilitate performing further operations with
             the ratio if reset_index == False.
+
+        dropna : boolean, default False
+             Whether to drop rows with NaN values in the result, namely
+             if division by 0 occurs because of an empty stratum in the denominator.
 
         reset_index : boolean, default True
             Whether to move index levels back into the dataframe's columns after computing the ratio.
@@ -383,6 +415,10 @@ class VPHOperator:
             value_col = self.value_col
         if measure_col is None:
             measure_col = self.measure_col
+        # Filter both the numerator and denominator if requested
+        if prefilter_query is not None:
+            numerator = numerator.query(prefilter_query)
+            denominator = denominator.query(prefilter_query)
         # Ensure that index columns in numerator and denominator are columns not index levels,
         # to guarantee that _ensure_iterable will work and df[measure_col] will work.
         numerator = _ensure_columns_not_levels(numerator)
@@ -406,6 +442,10 @@ class VPHOperator:
             # Really I think the 'measure' column should always have a
             # unique value, but currently that is not the case for
             # transition counts...
+            # TODO: Would it make sense to instead rename these columns
+            # 'numerator_measure' and 'denominator_measure' and add them
+            # to the numerator_broadcast and denominator_broadcast,
+            # respectively? I don't remember whether I've tried that...
             numerator_measure = '|'.join(numerator[measure_col].unique())
             denominator_measure = '|'.join(denominator[measure_col].unique())
 
@@ -435,9 +475,15 @@ class VPHOperator:
             # the shape of data and never actually operates in place
             ratio = ratio.dropna()
 
+        # Record specified measure in measure column
+        if measure is not None:
+            ratio[measure_col] = constant_categorical(measure, len(ratio))
+
         if record_inputs:
-            ratio[f'numerator_{measure_col}'] = numerator_measure
-            ratio[f'denominator_{measure_col}'] = denominator_measure
+            ratio[f'numerator_{measure_col}'] = constant_categorical(
+                numerator_measure, len(ratio))
+            ratio[f'denominator_{measure_col}'] = constant_categorical(
+                denominator_measure, len(ratio))
             ratio['multiplier'] = multiplier
 
         if reset_index:
@@ -451,6 +497,8 @@ class VPHOperator:
     # TODO: Generalize the difference function to linear_combination,
     # e.g. to take a weighted average of a 0% coverage scenario
     # with a 100% coverage scenario
+    # TODO: Maybe add an option to *not* record the "subtracted from" or
+    # "subtracted value" column?
     def difference(
         self,
         measure:pd.DataFrame,
@@ -463,19 +511,29 @@ class VPHOperator:
         rows for the minuend (that which is diminished) and subtrahend (that which is subtracted)
         are determined by the values in identifier_col
         """
+        print_memory_usage(measure, 'measure')
         if minuend_id is not None:
             minuend = measure[measure[identifier_col] == minuend_id]
             if subtrahend_id is not None:
+                # Both minuend and subtrahend specified, no broadcasting necessary
                 subtrahend = measure[measure[identifier_col] == subtrahend_id]
             else:
+                # subtrahend is None, minuend is not
                 # Use all values not equal to minuend_id for subtrahend (minuend will be broadcast over subtrahend)
                 subtrahend = measure[measure[identifier_col] != minuend_id]
         elif subtrahend_id is not None:
+            # minuend is None, subtrahend is not
             subtrahend = measure[measure[identifier_col] == subtrahend_id]
             # Use all values not equal to subtrahend_id for minuend (subtrahend will be broadcast over minuend)
             minuend = measure[measure[identifier_col] != subtrahend_id]
         else:
             raise ValueError("At least one of `minuend_id` and `subtrahend_id` must be specified")
+
+        print_memory_usage(minuend, 'minuend')
+        print_memory_usage(subtrahend, 'subtrahend')
+
+        # print(minuend.memory_usage(deep=True))
+        # print(subtrahend.memory_usage(deep=True))
 
         # Columns to match when subtracting subtrahend from minuend
         # Oh, I just noticed that I could use the Index.difference() method here, which I was unaware of before...
@@ -485,22 +543,54 @@ class VPHOperator:
         minuend = minuend.set_index(index_columns)
         subtrahend = subtrahend.set_index(index_columns)
 
+        # return minuend.index, subtrahend.index
+
+        print_memory_usage(minuend, 'minuend re-indexed')
+        print_memory_usage(subtrahend, 'subtrahend re-indexed')
+
         # Add the identifier column to the index of the larger dataframe
         # (or default to the subtrahend dataframe if neither needs broadcasting).
         if minuend_id is None:
+            # Broadcast subtrahend over minuend
             minuend.set_index(identifier_col, append=True, inplace=True)
+            # Explicit reindexing is necessary to preserve Categoricals
+            # in the index when broadcasting
+            subtrahend = subtrahend.reindex(minuend.index)
         else:
+            # Broadcast minuend over subtrahend (or no broadcasting necessary)
             subtrahend.set_index(identifier_col, append=True, inplace=True)
+            # Explicit reindexing is necessary to preserve Categoricals
+            # in the index when broadcasting
+            minuend = minuend.reindex(subtrahend.index)
+
+        # print_memory_usage(minuend, 'minuend re-indexed')
+        # print_memory_usage(subtrahend, 'subtrahend re-indexed')
+
+        # return minuend, subtrahend
 
         # Subtract DataFrames, not Series, because Series will drop the identifier column from the index
         # if there is no broadcasting. (Behavior for Series and DataFrames is different - is this a
         # feature or a bug in pandas?)
         difference = minuend[[self.value_col]] - subtrahend[[self.value_col]]
-        difference = difference.reset_index()
+        print_memory_usage(difference, 'difference')
+        # return difference
+        difference.reset_index(inplace=True)
+        print_memory_usage(difference, 'difference with reset index')
 
         # Add a column to specify what was subtracted from (the minuend) or what was subtracted (the subtrahend)
-        colname, value = ('subtracted_from', minuend_id) if minuend_id is not None else ('subtracted_value', subtrahend_id)
-        difference.insert(difference.columns.get_loc(identifier_col)+1, colname, value)
+        colname, value = (
+            ('subtracted_from', minuend_id)
+            if minuend_id is not None
+            else ('subtracted_value', subtrahend_id)
+        )
+        # Create a constant Categorical column containing the
+        # appropriate ID
+        value = constant_categorical(
+            value, len(difference), dtype=difference[identifier_col].dtype)
+        difference.insert(
+            difference.columns.get_loc(identifier_col) + 1, colname, value)
+
+        print_memory_usage(difference, 'final difference')
 
         return difference
 
@@ -537,17 +627,48 @@ class VPHOperator:
     #     averted.insert(averted.columns.get_loc(scenario_col)+1, 'relative_to', baseline_scenario)
         return averted
 
-    def describe(self, df, **describe_kwargs):
+    def summarize_draws(
+            self,
+            df,
+            agg_func=['mean', lower, upper],
+            reset_index=False,
+            args=(),
+            **kwargs,
+        ):
         """Describes the distribution of df's values across draws.
         This is a wrapper function for DataFrameGroupBy.describe(),
         with `df` grouped by everything except draw and value.
         """
-        if 'percentiles' not in describe_kwargs:
-            describe_kwargs['percentiles'] = [.025, .975]
         excluded_cols = [self.draw_col, self.value_col]
         df = _ensure_columns_not_levels(df, excluded_cols)
         groupby_cols = df.columns.difference(excluded_cols).to_list()
-        return df.groupby(groupby_cols)[self.value_col].describe(**describe_kwargs)
+        summary = (
+            df
+            .groupby(
+                groupby_cols, observed=True, dropna=False,
+                # FIXME: as_index is not working, I don't know why
+                as_index=(not reset_index))
+            [self.value_col]
+            .agg(agg_func, *args, **kwargs)
+        )
+        return summary
+
+    def describe(self, df, *args, **kwargs):
+        """Describes the distribution of df's values across draws.
+        This is a wrapper function for DataFrameGroupBy.describe(),
+        with `df` grouped by everything except draw and value.
+        """
+        # if 'percentiles' not in describe_kwargs:
+        #     describe_kwargs['percentiles'] = [.025, .975]
+        # excluded_cols = [self.draw_col, self.value_col]
+        # df = _ensure_columns_not_levels(df, excluded_cols)
+        # groupby_cols = df.columns.difference(excluded_cols).to_list()
+        # return
+        # df.groupby(groupby_cols)[self.value_col].describe(**describe_kwargs)
+        reset_index=kwargs.pop('reset_index', False)
+        described = self.summarize_draws(df, 'describe', reset_index, args,
+                                         **kwargs)
+        return described
 
     def assert_values_equal(self, df1, df2, **kwargs):
         """Test whether the value columns of df1 and df2 are equal, using all other columns as the index,

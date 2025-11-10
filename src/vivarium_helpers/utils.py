@@ -1,6 +1,7 @@
 import collections
 import re
 import pandas as pd
+import numpy as np
 
 class FrozenAttributeMapping(collections.abc.Mapping):
     """Implementation of the Mapping abstract base class that
@@ -138,12 +139,71 @@ def column_to_ordered_categorical(
     else:
         return df.assign(**{colname: categorical})
 
+def convert_to_categorical(
+        df,
+        include_cols=(),
+        exclude_cols=(),
+        exclude_dtypes=('float', 'category'),
+        inplace=False
+    ):
+    """Convert all columns to pandas Categoricals except those with
+    dtypes listed in `exclude_dtypes` (default 'float' and 'category')
+    or those with names listed in `exclude_cols`. One can force a
+    specific column to be converted, even it its dtype is listed in
+    `exclude_dtypes`, by passing the column name to `include_cols`. It
+    is not allowed to pass a column name both to `include_cols` and
+    `exclude_cols`. Dtype conversion is performed in place if
+    `inplace=True`.
+
+    This method can save lots of memory, allowing loading and
+    manipulating larger DataFrames.
+    """
+    if  len(set(include_cols).intersection(exclude_cols)) != 0:
+        raise ValueError("A column can't be both included and excluded!")
+    if not inplace:
+        df = df.copy()
+    for col in df:
+        if (
+            col in include_cols
+            or (col not in exclude_cols
+                and df[col].dtype not in exclude_dtypes)
+        ):
+            df[col] = df[col].astype('category')
+    if not inplace:
+        return df
+    else:
+        return None
+
+def constant_categorical(value, length, dtype=None):
+    """Create a pandas Categorical of the specified length with all
+    values equal to `value`. Creates the Categorical directly from codes
+    to avoid the unnecessarily large memory usage of creating a constant
+    list or Series of `value` first.
+    """
+    if dtype != 'category':
+        # If a non-categorical dtype was passed, use a dtype with a
+         # single category when creating the Categorical from codes
+        dtype = pd.CategoricalDtype([value])
+    # Get the category code corresponding to value
+    code = dtype.categories.get_loc(value)
+    # NOTE: This could be made even more memory efficient by creating a
+    # NumPy array with an integer dtype of the minimum necessary size --
+    # that would require computing the minimum number of bits necessary
+    # to represent the integers 0, 1, ..., len(dtype.categories) - 1.
+    return pd.Categorical.from_codes(np.full(length, code), dtype=dtype)
+
 def get_mean_lower_upper(described_data, colname_mapper={'mean':'mean', '2.5%':'lower', '97.5%':'upper'}):
         """
         Gets the mean, lower, and upper value from `described_data` DataFrame, which is assumed to have
         the format resulting from a call to DataFrame.describe().
         """
         return described_data[colname_mapper.keys()].rename(columns=colname_mapper).reset_index()
+
+def lower(x, rank=0.025):
+    return x.quantile(rank)
+
+def upper(x, rank=0.975):
+    return x.quantile(rank)
 
 # Alternative strategy to the get_mean_lower_upper function above
 def aggregate_mean_lower_upper(df_or_groupby, lower_rank=0.025, upper_rank=0.975):
@@ -157,3 +217,7 @@ def aggregate_with_join(strings, sep='|'):
     sep.join(strings).
     """
     return sep.join(strings)
+
+def print_memory_usage(df, label=''):
+    """Print the memory usage of a dataframe in megabytes."""
+    print(df.memory_usage(deep=True).sum() / 1e6, 'MB', label)
