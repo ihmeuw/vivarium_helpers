@@ -328,6 +328,15 @@ class VPHOperator:
                 func, args, **kwargs)
         )
         if append:
+            # If column is Categorical, add the supercategories to its
+            # categories in order to preserve the Categorical (and hence
+            # save memory and time) when concatenating
+            if df[category_col].dtype == 'category':
+                aggregated_column_dtype = df[category_col].cat.add_categories(
+                    supercategory_to_categories.keys()).dtype
+                df = df.astype({category_col: aggregated_column_dtype})
+                aggregated_df = aggregated_df.astype(
+                    {category_col: aggregated_column_dtype})
             return pd.concat([df, aggregated_df], ignore_index=True)
         else:
             return aggregated_df
