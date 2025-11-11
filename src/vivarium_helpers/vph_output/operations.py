@@ -64,6 +64,24 @@ class VPHOperator:
         # to return to the original
         self.index_cols = index_columns
 
+    def drop_index(self, cols):
+        """Return a new VPHOperator object which is a copy of this one
+        but with one or more columns dropped from the index. For
+        example, this may be useful for (1) comparing results across
+        scenarios (via drop_index('scenario')), e.g., for computing
+        percent DALYs averted, or (2) broadcasting Artifact data across
+        simulation output if the Artifact data doesn't have all the
+        index columns (e.g., scenario or input_draw might be missing).
+        """
+        # Get a copy of self's attributes to pass to constructor of new
+        # object
+        kwargs = dict(vars(self))
+        # Remove specified columns from the index
+        kwargs['index_cols'] = [c for c in self.index_cols
+                                if c not in _ensure_iterable(cols)]
+        # Return a new VPHOperator object with specified parameters
+        return self.__class__(**kwargs)
+
     # TODO: Either add an index_cols parameter here, or figure out if
     # there's a way to mimic the same behavior by allowing the user
     # to pass both `include` and `exclude`
