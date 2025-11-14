@@ -7,22 +7,31 @@ from pathlib import Path
 from vivarium import Artifact
 from ...utils import convert_to_categorical, print_memory_usage
 
-location_to_artifact_path = {
-    'United States of America': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/united_states_of_america.hdf',
-    'Brazil': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/brazil.hdf',
-    'China': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/china.hdf',
-    'Germany': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/germany.hdf',
-    'Israel': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/israel.hdf',
-    'Japan': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/japan.hdf',
-    'Spain': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/spain.hdf',
-    'Sweden': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/sweden.hdf',
-    'Taiwan (Province of China)': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/taiwan_(province_of_china).hdf',
-    'United Kingdom': '/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/artifacts/model8.3/united_kingdom.hdf',
-}
+# Project directory
+project_dir = Path('/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/')
 
-location_to_results_dir = {
-    'all': Path('/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/results/abie_consistent_model_test/united_states_of_america/2025_10_28_08_55_05/results')
-}
+# For testing: Run directory containing model 8.3 results for all
+# locations
+model_run_subdir = 'results/abie_consistent_model_test/united_states_of_america/2025_10_28_08_55_05/'
+
+# Results directory for model 8.3, for testing
+results_dirs = project_dir / model_run_subdir / 'results/'
+
+# Artifact for models 8.3 - 8.7
+artifact_model_number = '8.3'
+
+locations = [
+    'United States of America',
+    'Brazil',
+    'China',
+    'Germany',
+    'Israel',
+    'Japan',
+    'Spain',
+    'Sweden',
+    'Taiwan (Province of China)',
+    'United Kingdom',
+]
 
 colname_to_dtype = {
     'location': pd.CategoricalDtype(categories=['Brazil', 'China', 'Germany', 'Israel', 'Japan', 'Spain',
@@ -36,6 +45,39 @@ colname_to_dtype = {
     'input_draw': 'int16',
 }
 
+def get_results_and_artifact_dicts(
+        locations, results_dirs, artifact_model_number, project_dir):
+
+    match results_dirs:
+        case str() | Path():
+            # Option 1: All locations concatenated in one results
+            # directory
+            location_to_results_dir = {'all': results_dirs}
+        case list():
+            # Option 2: One results directory per location
+            location_to_results_dir = {
+                loc: path for loc, path in zip(locations, results_dirs)}
+
+    location_to_artifact_subdir = {
+        loc: loc.lower().replace(' ', '_') for loc in locations}
+    artifact_subpaths = [
+        f'artifacts/model{artifact_model_number}/' + subdir + '.hdf'
+        for subdir in location_to_artifact_subdir.values()]
+
+    location_to_artifact_path = {
+        # Make sure artifact directory is stored as a string, not a Path
+        # object, since it'll be stored as a string in the simulation
+        # output, and we'll need to reverse this dict to map from
+        # directories to locations
+        loc: str(project_dir / subpath) for loc, subpath
+        in zip(locations, artifact_subpaths)}
+
+    return location_to_results_dir, location_to_artifact_path
+
+# Create location-to-directory dictionaries
+location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
+    locations, results_dirs, artifact_model_number, project_dir
+)
 
 def load_artifact_data(
     key,
@@ -223,6 +265,55 @@ def load_sim_output(
     # to filter the resulting concatenated dataframe by location...
     df = pd.concat(dfs, ignore_index=True)
     return df
+
+def load_measure_from_batch_runs(
+        measure,
+        batch_results_dirs,
+        locations=locations,
+        n_location_groups=1,
+        filter_burn_in_years=True,
+        artifact_model_number=artifact_model_number,
+        colname_to_dtype=colname_to_dtype,
+        project_dir=project_dir,
+        **kwargs
+    ):
+    """Load data from multiple batch runs, aggregate random seeds, and
+    concatenate.
+    """
+    # aggregate seeds by default, and warn if False was passed
+    if not kwargs.setdefault('aggregate_seeds', True):
+        # Documentation for setdefault: If key is in the dictionary,
+        # return its value. If not, insert key with a value of default
+        # and return default.
+        print("Warning: Not aggregating seeds, which may require lots of memory")
+    if filter_burn_in_years:
+        # Filter out years before 2025 because for model 8.4, years
+        # 2022-2024 are for burn-in
+        year_filter = ('event_year', '>=', '2025')
+        # Add the year filter to the user filters
+        user_filters = kwargs.get('filters') # Defaults to None
+        kwargs['filters'] = add_parquet_AND_filter(year_filter, user_filters)
+    dfs = []
+    print(kwargs.get('filters'))
+    for results_dir in batch_results_dirs:
+        print(results_dir)
+        for i in range(n_location_groups):
+            location_group = locations[i::n_location_groups]
+            # print(location_group)
+            location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
+                location_group, results_dir, artifact_model_number, project_dir
+            )
+            print(location_to_artifact_path)
+            df = load_sim_output(
+                measure, location_to_results_dir, location_to_artifact_path, colname_to_dtype, **kwargs
+            )
+            print_memory_usage(df, 'after aggregating seeds and converting dtypes')
+            dfs.append(df)
+    measure_df = pd.concat(dfs, ignore_index=True)
+    print_memory_usage(measure_df, 'total')
+    measure_df = measure_df.astype(colname_to_dtype)
+    print_memory_usage(measure_df, 'after enforcing dtypes')
+    return measure_df
 
 def add_parquet_AND_filter(new_filter, existing_filters):
     match existing_filters:
