@@ -33,18 +33,6 @@ locations = [
     'United Kingdom',
 ]
 
-colname_to_dtype = {
-    'location': pd.CategoricalDtype(categories=['Brazil', 'China', 'Germany', 'Israel', 'Japan', 'Spain',
-                   'Sweden', 'Taiwan (Province of China)', 'United Kingdom',
-                   'United States of America'], ordered=True),
-    'event_year': 'int16',
-    'age_group': pd.CategoricalDtype(categories=['25_to_29', '30_to_34', '35_to_39', '40_to_44', '45_to_49',
-                   '50_to_54', '55_to_59', '60_to_64', '65_to_69', '70_to_74',
-                   '75_to_79', '80_to_84', '85_to_89', '90_to_94', '95_plus'], ordered=True),
-    'scenario': pd.CategoricalDtype(categories=['baseline', 'bbbm_testing', 'bbbm_testing_and_treatment'], ordered=True),
-    'input_draw': 'int16',
-}
-
 def get_results_and_artifact_dicts(
         locations, results_dirs, artifact_model_number, project_dir):
 
@@ -74,10 +62,55 @@ def get_results_and_artifact_dicts(
 
     return location_to_results_dir, location_to_artifact_path
 
+def get_column_dtypes(locations):
+    """Create a dictionary mapping column names to datatypes. We specify
+    integer dtypes and ordered Categoricals to convert years from
+    strings to ints, save memory, and have a standardized ordering of
+    column entries.
+    """
+    # Order locations lexicographically
+    location_dtype = pd.CategoricalDtype(sorted(locations), ordered=True)
+
+    # int16 ranges from -32768 to 32767 (I think), which is sufficient to
+    # represent all years 2025-2100. uint8 only goes from 0 to 255, which is
+    # too small.
+    year_dtype = 'int16'
+
+    # Store draws as ints instead of categoricals since we'll be
+    # concatenating different draws from different results directories
+    input_draw_dtype = 'int16'
+
+    # Order sexes alphabetically
+    sex_dtype = pd.CategoricalDtype(['Female', 'Male'], ordered=True)
+
+    # Order age groups chronologically
+    age_groups = [f'{age}_to_{age + 4}' for age in range(25, 95, 5)] + ['95_plus']
+    age_group_dtype = pd.CategoricalDtype(age_groups, ordered=True)
+
+    # Order scenarios by complexity
+    scenarios = ['baseline', 'bbbm_testing', 'bbbm_testing_and_treatment']
+    scenario_dtype = pd.CategoricalDtype(scenarios, ordered=True)
+
+    # Map column names to dtypes
+    colname_to_dtype = {
+        'location': location_dtype,
+        'event_year': year_dtype,
+        'age_group': age_group_dtype,
+        'sex': sex_dtype,
+        'scenario': scenario_dtype,
+        'input_draw': input_draw_dtype,
+    }
+    return colname_to_dtype
+
+#### Generate global dictionaries to use as defaults for loading data ####
+
 # Create location-to-directory dictionaries
 location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
     locations, results_dirs, artifact_model_number, project_dir
 )
+
+# Create column-to-datatype dictionary
+colname_to_dtype = get_column_dtypes(locations)
 
 def load_artifact_data(
     key,
