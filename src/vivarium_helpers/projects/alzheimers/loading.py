@@ -1,5 +1,4 @@
-"""Code used to load files for the CSU Alzheimer's project.
-"""
+"""Code used to load files for the CSU Alzheimer's project."""
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -112,6 +111,8 @@ location_to_results_dir, location_to_artifact_path = get_results_and_artifact_di
 # Create column-to-datatype dictionary
 colname_to_dtype = get_column_dtypes(locations)
 
+#### Functions to load data ####
+
 def load_artifact_data(
     key,
     filter_terms=None,
@@ -131,7 +132,6 @@ def load_artifact_data(
     else:
         data = pd.concat(dfs, names=['location', *df.index.names])
     return data
-
 
 def load_sim_output(
         measure,
@@ -356,6 +356,11 @@ def load_measure_from_batch_runs(
     return measure_df
 
 def add_parquet_AND_filter(new_filter, existing_filters):
+    """Add a filter to an existing list of parquet filters in
+    disjunctive normal form (DNF). The new filter will be combined with
+    the ALL existing filters via conjunction (AND), so adding the new
+    filter will result in a stricter filtering criterion.
+    """
     match existing_filters:
         case None:
             # No existing filters -- create a single AND group
