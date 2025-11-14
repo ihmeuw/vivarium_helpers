@@ -2,22 +2,45 @@
 in the Artifact.
 """
 from .loading import load_artifact_data
+from enum import Enum
+from pandas import DataFrame
 
-def get_real_world_initial_population(
-       population_structure=None,
-       initial_prevalence=None,
+POPULATION_PER_SEED = 20_000
+NUM_SEEDS_V_AND_V = 5
+NUM_SEEDS_FINAL = 100
+
+class RunType(Enum):
+    V_AND_V = 1
+    FINAL = 2
+
+def get_initial_simulation_population(run_type: RunType) -> int:
+    """Return the total size of a simulation population, for either a
+    V&V run or a final run.
+    """
+    if run_type == RunType.V_AND_V:
+        num_seeds = NUM_SEEDS_V_AND_V
+    elif run_type == RunType.FINAL:
+        num_seeds =  NUM_SEEDS_FINAL
+    else:
+        raise ValueError(
+            f"Must pass {RunType.V_AND_V} or {RunType.FINAL} for run_type")
+    return num_seeds * POPULATION_PER_SEED
+
+def get_initial_real_world_population(
+       population_structure: DataFrame|None = None,
+       initial_prevalence: DataFrame|None = None,
        # Start year of the simulation -- it was 2025, but then we
        # switched to 2022
-       start_year=2022,
-       filter_terms=None,
-       location_to_artifact_path=None,
-):
-    """Calculate the real-world population that we are simulating,
-    stratified by location, year, sex, and age group. This is obtained
-    by multiplying the stratified forecasted population in each location
-    (the "population structure") by the prevalence of all AD disease
-    states combined (preclinical + MCI + AD-dementia), which is stored
-    in the 'population.scaling_factor' key of the artifact.
+       start_year: int = 2022,
+       filter_terms: list|None = None,
+       location_to_artifact_path: dict|None = None,
+) -> DataFrame:
+    """Calculate size of the real-world population that we are
+    simulating, stratified by location, year, sex, and age group. This
+    is obtained by multiplying the stratified forecasted population in
+    each location (the "population structure") by the prevalence of all
+    AD disease states combined (preclinical + MCI + AD-dementia), which
+    is stored in the 'population.scaling_factor' key of the artifact.
     """
     # Check whether we were given enough data to do anything
     if location_to_artifact_path is None:
@@ -56,7 +79,7 @@ def get_real_world_initial_population(
     # Use the specified start year for the population structure,
     # regardless of what single year is stored in the initial
     # prevalence. Rename year_start and year_end in initial_prevalence
-    # to properly match the start year in the population structure.
+    # to match the start year in the population structure.
     initial_prevalence = (
         initial_prevalence
         .rename({year: start_year}, level='year_start')
@@ -71,3 +94,36 @@ def get_real_world_initial_population(
         * initial_prevalence
     ).dropna() # Drop age groups we don't have in sim
     return initial_prevalence_counts
+
+def calculate_model_scale(
+        initial_simulation_population: int|RunType,
+        initial_real_world_population: DataFrame|None = None,
+        location_to_artifact_path: dict|None = None
+    ) -> DataFrame:
+    """Calculate the model scale for a simulation run, which is the
+    ratio of the real-world population we are modeling to the initial
+    population in the simulation. The result will be a single number for
+    each location and input draw and is returned in Artifact format,
+    with one row for each location and one column for each draw.
+    """
+    if (initial_real_world_population is None
+        and location_to_artifact_path is None):
+        raise ValueError(
+            "Must provide either the initial real-world population dataframe"
+            " or a dictionary mapping locations to artifact paths")
+    if isinstance(initial_simulation_population, RunType):
+        initial_simulation_population = get_initial_simulation_population(
+            initial_simulation_population)
+    if initial_real_world_population is None:
+        initial_real_world_population = get_initial_real_world_population(
+            location_to_artifact_path=location_to_artifact_path)
+    # Sum over age groups to get real-world population in each location
+    total_initial_real_world_pop = (
+        initial_real_world_population.groupby('location').sum())
+    # Model scale is the ratio of our simulated population to the real-world
+    # population at time 0
+    model_scale = (
+        initial_simulation_population / total_initial_real_world_pop)
+    # This format (draws horizontally as column names, as strings) is
+    # compatible with Artifacts
+    return model_scale
