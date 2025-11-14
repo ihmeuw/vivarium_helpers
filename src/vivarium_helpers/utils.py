@@ -1,5 +1,5 @@
 import collections
-import re
+import re, yaml
 import pandas as pd
 import numpy as np
 
@@ -82,6 +82,7 @@ def _ensure_iterable(colnames, default=None):
         allowed iterable types, then it is an iterable of column names, and otherwise it must be a single
         column name.
         """
+        # TODO: Maybe add pd.Categorical to the whitelist?
         if not isinstance(colnames, (list, pd.Index)):
             colnames = [colnames]
         return colnames
@@ -221,3 +222,9 @@ def aggregate_with_join(strings, sep='|'):
 def print_memory_usage(df, label=''):
     """Print the memory usage of a dataframe in megabytes."""
     print(df.memory_usage(deep=True).sum() / 1e6, 'MB', label)
+
+def load_yaml(stream):
+    "Safe-load a yaml file into a dictionary."
+    with open(stream, 'r') as yaml_stream:
+        yaml_dict = yaml.safe_load(yaml_stream)
+    return yaml_dict
