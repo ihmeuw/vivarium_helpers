@@ -7,7 +7,8 @@ import pandas as pd
 import os
 from pathlib import Path
 
-from ..utils import AttributeMapping, convert_to_variable_name, load_yaml
+from ..utils import (
+    AttributeMapping, convert_to_variable_name, load_yaml)
 
 class VPHOutput(AttributeMapping):
     """Implementation of the Mapping abstract base class to conveniently store transformed
