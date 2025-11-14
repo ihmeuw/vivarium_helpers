@@ -303,6 +303,10 @@ def load_measure_from_batch_runs(
         measure,
         batch_results_dirs,
         locations=locations,
+        # With n = 1 this loads all 10 locations at once, which may use
+        # too much memory. With n > 1, this loads the locations in n
+        # groups of approximate size 10 / n before aggregating seeds,
+        # which is slightly slower but uses less memory.
         n_location_groups=1,
         filter_burn_in_years=True,
         artifact_model_number=artifact_model_number,
@@ -331,6 +335,9 @@ def load_measure_from_batch_runs(
     for results_dir in batch_results_dirs:
         print(results_dir)
         for i in range(n_location_groups):
+            # Group locations into n groups. This seems to work for any
+            # n and splits as evenly as possible, front-loading with
+            # larger groups at the beginning.
             location_group = locations[i::n_location_groups]
             # print(location_group)
             location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
