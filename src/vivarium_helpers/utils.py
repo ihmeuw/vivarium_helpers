@@ -1,5 +1,5 @@
 import collections
-import re, yaml
+import re, yaml, datetime
 import pandas as pd
 import numpy as np
 
@@ -228,3 +228,14 @@ def load_yaml(stream):
     with open(stream, 'r') as yaml_stream:
         yaml_dict = yaml.safe_load(yaml_stream)
     return yaml_dict
+
+class Timer:
+    """Simple class to time code blocks using a context manager.
+    Code modified from: https://stackoverflow.com/a/79354757/24446049
+    """
+    def __enter__(self):
+        self._enter_time = datetime.datetime.now()
+
+    def __exit__(self, *exc_args):
+        self._exit_time = datetime.datetime.now()
+        print(f"Elapsed time: {self._exit_time - self._enter_time}")
