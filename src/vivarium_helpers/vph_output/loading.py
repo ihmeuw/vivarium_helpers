@@ -5,8 +5,9 @@ Module providing functions and data structures for loading and storing (transfor
 
 import pandas as pd
 import os
+from pathlib import Path
 
-from ..utils import AttributeMapping, convert_to_variable_name
+from ..utils import AttributeMapping, convert_to_variable_name, load_yaml
 
 class VPHOutput(AttributeMapping):
     """Implementation of the Mapping abstract base class to conveniently store transformed
@@ -147,3 +148,27 @@ def merge_location_count_data(locations_count_data: dict, copy=True) -> dict:
 def load_and_merge_location_count_data(locations_paths: dict, subdirectory='count_data') -> dict:
     locations_count_data = load_count_data_by_location(locations_paths, subdirectory)
     return merge_location_count_data(locations_count_data, copy=False)
+
+def load_keyspace(model_run_dir, filename='keyspace.yaml'):
+    """Load (into a dictionary) the keyspace.yaml file from the
+    specified model run directory.
+    """
+    return load_yaml(Path(model_run_dir) / filename)
+
+def load_model_spec(model_run_dir, filename='model_specification.yaml'):
+    """Load (into a dictionary) the model_specification.yaml file from
+    the specified model run directory.
+    """
+    return load_yaml(Path(model_run_dir) / filename)
+
+def load_draws_from_keyspace_files(
+        model_run_dirs, keyspace_filename='keyspace.yaml'):
+    """Load the keyspace.yaml file from each of the model run
+    directories, read the 'input_draw' key, and concatenate draws from
+    all run directories into a single list.
+    """
+    draws = []
+    for run_dir in model_run_dirs:
+        keyspace = load_keyspace(run_dir, keyspace_filename)
+        draws.extend(keyspace['input_draw'])
+    return draws
