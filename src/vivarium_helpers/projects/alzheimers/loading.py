@@ -114,6 +114,31 @@ def get_column_dtypes(locations):
     }
     return colname_to_dtype
 
+def get_age_map(
+        artifact_path,
+        # Filter to ages that actually appear in our sim by default
+        filter_terms=["age_start >= 25"],
+        # Convert age_group to categorical by default
+        age_group_dtype='category',
+    ):
+    """Load age_bins from the specified artifact, and add an age_group
+    column with age groups that match simulation output. Optionally
+    filter to certain age groups and specify the dtype of the added
+    age_group column.
+    """
+    art = Artifact(artifact_path, filter_terms)
+    # age_bins is an empty DataFrame with a MultiIndex storing age group data
+    age_bins = art.load('population.age_bins')
+    age_map = (
+        age_bins
+        .reset_index()
+        .assign(
+            age_group=lambda df: df['age_group_name'].str.replace(' ', '_'))
+        .pipe(lambda df: df.astype({'age_group': age_group_dtype})
+              if age_group_dtype is not None else df)
+    )
+    return age_map
+
 #### Generate global dictionaries to use as defaults for loading data ####
 
 # Create location-to-directory dictionaries
