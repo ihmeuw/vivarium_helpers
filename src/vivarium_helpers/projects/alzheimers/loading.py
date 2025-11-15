@@ -11,14 +11,7 @@ PROJECT_DIRECTORY = Path('/mnt/team/simulation_science/pub/models/vivarium_csu_a
 # Artifact for models 8.3 - 8.7
 FINAL_ARTIFACT_MODEL_NUMBER = '8.3'
 
-# For testing: Run directory containing model 8.3 results for all
-# locations
-model_run_subdir = 'results/abie_consistent_model_test/united_states_of_america/2025_10_28_08_55_05/'
-
-# Results directory for model 8.3, for testing
-results_dirs = PROJECT_DIRECTORY / model_run_subdir / 'results/'
-
-locations = [
+LOCATIONS = [
     'United States of America',
     'Brazil',
     'China',
@@ -30,6 +23,13 @@ locations = [
     'Taiwan (Province of China)',
     'United Kingdom',
 ]
+
+# For testing: Run directory containing model 8.3 results for all
+# locations
+model_run_subdir = 'results/abie_consistent_model_test/united_states_of_america/2025_10_28_08_55_05/'
+
+# Results directory for model 8.3, for testing
+results_dirs = PROJECT_DIRECTORY / model_run_subdir / 'results/'
 
 def get_location_results_dict(
         results_dirs: list|str|Path, locations: list|None = None):
@@ -119,10 +119,11 @@ def get_column_dtypes(locations):
 # Create location-to-directory dictionaries
 location_to_results_dir = get_location_results_dict(results_dirs)
 
-location_to_artifact_path = get_location_artifact_dict(locations)
+location_to_artifact_path = get_location_artifact_dict(
+    LOCATIONS, FINAL_ARTIFACT_MODEL_NUMBER)
 
 # Create column-to-datatype dictionary
-colname_to_dtype = get_column_dtypes(locations)
+colname_to_dtype = get_column_dtypes(LOCATIONS)
 
 #### Functions to load data ####
 
@@ -315,7 +316,7 @@ def load_sim_output(
 def load_measure_from_batch_runs(
         measure,
         batch_results_dirs,
-        locations=locations,
+        locations=LOCATIONS,
         # With n = 1 this loads all 10 locations at once, which may use
         # too much memory. With n > 1, this loads the locations in n
         # groups of approximate size 10 / n before aggregating seeds,
