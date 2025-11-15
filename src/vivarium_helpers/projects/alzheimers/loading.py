@@ -7,17 +7,16 @@ from vivarium import Artifact
 from ...utils import convert_to_categorical, print_memory_usage
 
 # Project directory
-project_dir = Path('/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/')
+PROJECT_DIRECTORY = Path('/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/')
+# Artifact for models 8.3 - 8.7
+FINAL_ARTIFACT_MODEL_NUMBER = '8.3'
 
 # For testing: Run directory containing model 8.3 results for all
 # locations
 model_run_subdir = 'results/abie_consistent_model_test/united_states_of_america/2025_10_28_08_55_05/'
 
 # Results directory for model 8.3, for testing
-results_dirs = project_dir / model_run_subdir / 'results/'
-
-# Artifact for models 8.3 - 8.7
-artifact_model_number = '8.3'
+results_dirs = PROJECT_DIRECTORY / model_run_subdir / 'results/'
 
 locations = [
     'United States of America',
@@ -32,19 +31,33 @@ locations = [
     'United Kingdom',
 ]
 
-def get_results_and_artifact_dicts(
-        locations, results_dirs, artifact_model_number, project_dir):
-
-    match results_dirs:
-        case str() | Path():
+def get_location_results_dict(
+        results_dirs: list|str|Path, locations: list|None = None):
+    """Get a dictionary mapping a location name to the results directory
+    for that location's simulation run. If the results from all
+    locations have been concatenated and stored in a single directory
+    passed to `results_dirs`,
+    this will return {'all': results_dirs}.
+    """
+    match results_dirs, locations:
+        case str() | Path(), None:
             # Option 1: All locations concatenated in one results
             # directory
             location_to_results_dir = {'all': results_dirs}
-        case list():
+        case list(), list():
             # Option 2: One results directory per location
             location_to_results_dir = {
                 loc: path for loc, path in zip(locations, results_dirs)}
+        case _:
+            raise ValueError(
+                "Must either pass a single directory and None for locations"
+                ", or a list of directories and a list of locations")
+    return location_to_results_dir
 
+def get_location_artifact_dict(
+        locations, artifact_model_number, project_dir=PROJECT_DIRECTORY):
+    """Get a dictionary mapping a location name to its artifact path. """
+    project_dir = Path(project_dir)
     location_to_artifact_subdir = {
         loc: loc.lower().replace(' ', '_') for loc in locations}
     artifact_subpaths = [
@@ -59,7 +72,7 @@ def get_results_and_artifact_dicts(
         loc: str(project_dir / subpath) for loc, subpath
         in zip(locations, artifact_subpaths)}
 
-    return location_to_results_dir, location_to_artifact_path
+    return location_to_artifact_path
 
 def get_column_dtypes(locations):
     """Create a dictionary mapping column names to datatypes. We specify
@@ -104,9 +117,9 @@ def get_column_dtypes(locations):
 #### Generate global dictionaries to use as defaults for loading data ####
 
 # Create location-to-directory dictionaries
-location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
-    locations, results_dirs, artifact_model_number, project_dir
-)
+location_to_results_dir = get_location_results_dict(results_dirs)
+
+location_to_artifact_path = get_location_artifact_dict(locations)
 
 # Create column-to-datatype dictionary
 colname_to_dtype = get_column_dtypes(locations)
@@ -309,9 +322,9 @@ def load_measure_from_batch_runs(
         # which is slightly slower but uses less memory.
         n_location_groups=1,
         filter_burn_in_years=True,
-        artifact_model_number=artifact_model_number,
+        artifact_model_number=FINAL_ARTIFACT_MODEL_NUMBER,
         colname_to_dtype=colname_to_dtype,
-        project_dir=project_dir,
+        project_dir=PROJECT_DIRECTORY,
         **kwargs
     ):
     """Load data from multiple batch runs, aggregate random seeds, and
@@ -334,15 +347,19 @@ def load_measure_from_batch_runs(
     print(kwargs.get('filters'))
     for results_dir in batch_results_dirs:
         print(results_dir)
+        location_to_results_dir = get_location_results_dict(results_dir)
         for i in range(n_location_groups):
             # Group locations into n groups. This seems to work for any
             # n and splits as evenly as possible, front-loading with
             # larger groups at the beginning.
             location_group = locations[i::n_location_groups]
             # print(location_group)
-            location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
-                location_group, results_dir, artifact_model_number, project_dir
+            location_to_artifact_path = get_location_artifact_dict(
+                location_group, artifact_model_number, project_dir
             )
+            # location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
+            #     location_group, results_dir, artifact_model_number, project_dir
+            # )
             print(location_to_artifact_path)
             df = load_sim_output(
                 measure, location_to_results_dir, location_to_artifact_path, colname_to_dtype, **kwargs
