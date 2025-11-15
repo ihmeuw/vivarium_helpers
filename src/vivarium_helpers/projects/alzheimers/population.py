@@ -97,8 +97,7 @@ def get_initial_real_world_population(
 
 def calculate_model_scale(
         initial_simulation_population: int|RunType,
-        initial_real_world_population: DataFrame|None = None,
-        location_to_artifact_path: dict|None = None
+        initial_real_world_population: DataFrame,
     ) -> DataFrame:
     """Calculate the model scale for a simulation run, which is the
     ratio of the real-world population we are modeling to the initial
@@ -106,17 +105,9 @@ def calculate_model_scale(
     each location and input draw and is returned in Artifact format,
     with one row for each location and one column for each draw.
     """
-    if (initial_real_world_population is None
-        and location_to_artifact_path is None):
-        raise ValueError(
-            "Must provide either the initial real-world population dataframe"
-            " or a dictionary mapping locations to artifact paths")
     if isinstance(initial_simulation_population, RunType):
         initial_simulation_population = get_initial_simulation_population(
             initial_simulation_population)
-    if initial_real_world_population is None:
-        initial_real_world_population = get_initial_real_world_population(
-            location_to_artifact_path=location_to_artifact_path)
     # Sum over age groups to get real-world population in each location
     total_initial_real_world_pop = (
         initial_real_world_population.groupby('location').sum())
