@@ -124,3 +124,44 @@ class AlzheimersResultsProcessor:
             pop_structure = self.append_aggregate_categories(pop_structure)
         return pop_structure
 
+    def load_measure_from_batch_runs(
+            self,
+            measure,
+            save_name=None,
+            batch_run_dirs=None,
+            locations=None,
+            # With n = 1 this loads all 10 locations at once, which may use
+            # too much memory. With n > 1, this loads the locations in n
+            # groups of approximate size 10 / n before aggregating seeds,
+            # which is slightly slower but uses less memory.
+            n_location_groups=1,
+            filter_burn_in_years=True,
+            artifact_model_number=None,
+            colname_to_dtype=None,
+            project_dir=None,
+            **kwargs,
+        ):
+        """Load data from multiple batch runs, aggregate random seeds, and
+        concatenate. Save the loaded data to this object's data
+        dictionary by default, using the specified save_name. Pass
+        save_name=False to return the data instead of saving.
+        """
+        sim_output = loading.load_measure_from_batch_runs(
+            measure,
+            batch_run_dirs or self.batch_run_dirs,
+            locations or self.locations,
+            n_location_groups,
+            filter_burn_in_years,
+            artifact_model_number or self.artifact_model_number,
+            colname_to_dtype or self.colname_to_dtype,
+            project_dir or self.project_directory,
+            **kwargs,
+        )
+        if save_name is False:
+            # Return loaded data instead of saving to dictionary
+            return sim_output
+        else:
+            # Save to our data dictionary, using measure as the default
+            # name if None was passed
+            self.data[save_name or measure] = sim_output
+
