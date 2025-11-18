@@ -1,4 +1,5 @@
 """Code used to load files for the CSU Alzheimer's project."""
+from typing import Literal
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -24,34 +25,52 @@ LOCATIONS = [
     'United Kingdom',
 ]
 
-# For testing: Run directory containing model 8.3 results for all
-# locations
-model_run_subdir = 'results/abie_consistent_model_test/united_states_of_america/2025_10_28_08_55_05/'
+def get_results_directory(run_directory):
+    """Get the path to the results subdirectory of a model run directory."""
+    run_directory = Path(run_directory)
+    if run_directory.name == '2025_10_29_20_41_39':
+        # One batch had to be deduplicated
+        results_directory = run_directory / 'deduplicated_results'
+    else:
+        results_directory = run_directory / 'results'
+    return results_directory
 
-# Results directory for model 8.3, for testing
-results_dirs = PROJECT_DIRECTORY / model_run_subdir / 'results/'
+# def get_location_results_dict(
+#         results_dirs: list|str|Path, locations: list|None = None):
+#     """Get a dictionary mapping a location name to the results directory
+#     for that location's simulation run. If the results from all
+#     locations have been concatenated and stored in a single directory
+#     passed to `results_dirs`,
+#     this will return {'all': results_dirs}.
+#     """
+#     match results_dirs, locations:
+#         case str() | Path(), None:
+#             # Option 1: All locations concatenated in one results
+#             # directory
+#             location_to_results_dir = {'all': results_dirs}
+#         case list(), list():
+#             # Option 2: One results directory per location
+#             location_to_results_dir = {
+#                 loc: path for loc, path in zip(locations, results_dirs)}
+#         case _:
+#             raise ValueError(
+#                 "Must either pass a single directory and None for locations"
+#                 ", or a list of directories and a list of locations")
+#     return location_to_results_dir
 
 def get_location_results_dict(
-        results_dirs: list|str|Path, locations: list|None = None):
+        run_dirs: list, locations: list|Literal['all']='all'):
     """Get a dictionary mapping a location name to the results directory
     for that location's simulation run. If the results from all
     locations have been concatenated and stored in a single directory
     passed to `results_dirs`,
     this will return {'all': results_dirs}.
     """
-    match results_dirs, locations:
-        case str() | Path(), None:
-            # Option 1: All locations concatenated in one results
-            # directory
-            location_to_results_dir = {'all': results_dirs}
-        case list(), list():
-            # Option 2: One results directory per location
-            location_to_results_dir = {
-                loc: path for loc, path in zip(locations, results_dirs)}
-        case _:
-            raise ValueError(
-                "Must either pass a single directory and None for locations"
-                ", or a list of directories and a list of locations")
+    if locations=='all':
+        locations = [locations]
+    location_to_results_dir = {
+        loc: get_results_directory(path)
+        for loc, path in zip(locations, run_dirs)}
     return location_to_results_dir
 
 def get_location_artifact_dict(
@@ -138,6 +157,13 @@ def get_age_map(
               if age_group_dtype is not None else df)
     )
     return age_map
+
+# For testing: Run directory containing model 8.3 results for all
+# locations
+model_run_subdir = 'results/abie_consistent_model_test/united_states_of_america/2025_10_28_08_55_05/'
+
+# Results directory for model 8.3, for testing
+results_dirs = [get_results_directory(PROJECT_DIRECTORY / model_run_subdir)]
 
 #### Generate global dictionaries to use as defaults for loading data ####
 
@@ -340,7 +366,7 @@ def load_sim_output(
 
 def load_measure_from_batch_runs(
         measure,
-        batch_results_dirs,
+        batch_run_dirs,
         locations=LOCATIONS,
         # With n = 1 this loads all 10 locations at once, which may use
         # too much memory. With n > 1, this loads the locations in n
@@ -371,7 +397,7 @@ def load_measure_from_batch_runs(
         kwargs['filters'] = add_parquet_AND_filter(year_filter, user_filters)
     dfs = []
     print(kwargs.get('filters'))
-    for results_dir in batch_results_dirs:
+    for results_dir in batch_run_dirs:
         print(results_dir)
         location_to_results_dir = get_location_results_dict(results_dir)
         for i in range(n_location_groups):
