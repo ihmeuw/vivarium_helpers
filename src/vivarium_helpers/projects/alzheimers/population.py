@@ -23,7 +23,7 @@ def get_initial_simulation_population(run_type: RunType) -> int:
         num_seeds =  NUM_SEEDS_FINAL
     else:
         raise ValueError(
-            f"Must pass {RunType.V_AND_V} or {RunType.FINAL} for run_type")
+            f"Must pass one of {', '.join(str(x) for x in RunType)} for run_type")
     return num_seeds * POPULATION_PER_SEED
 
 def get_initial_real_world_population(
