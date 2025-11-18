@@ -1,8 +1,9 @@
+from ...utils import AttributeMapping
 from ...vph_output.measures import VPHResults
 from ...vph_output.operations import VPHOperator
 from ...vph_output.loading import load_draws_from_keyspace_files, load_keyspace
 from ...vph_artifact.operations import convert_to_sim_format
-from . import loading
+from . import loading, population
 import pandas as pd
 
 class AlzheimersResultsProcessor:
@@ -45,16 +46,47 @@ class AlzheimersResultsProcessor:
         else:
             raise ValueError("run_dirs and batch_run_dirs cannot both be None")
 
-        if self.run_dirs is not None:
-            self.location_to_results_dir = (
-                loading.get_location_results_dict(self.run_dirs))
         self.location_to_artifact_path = loading.get_location_artifact_dict(
             self.locations, self.artifact_model_number)
         self.age_map = loading.get_age_map(
             self.location_to_artifact_path[self.locations[0]])
         self.colname_to_dtype = loading.get_column_dtypes(self.locations)
+        self.initial_simulation_population = (
+            population.get_initial_simulation_population(self.run_type))
+
         self.ops = VPHOperator(location_col=True)
         self.data = VPHResults(ops=self.ops)
+        self.art_data = AttributeMapping()
+
+    def load_population_data(
+            self,
+            append_aggregates=False,
+            person_time_measure=None,
+            model_scale_measure=None,
+        ):
+        """Load population structure and initial prevalence from the
+        artifact, and compute the model scale.
+        """
+        self.art_data.population_structure = loading.load_artifact_data(
+            'population.structure', None, self.location_to_artifact_path)
+        self.art_data.all_states_initial_prev = loading.load_artifact_data(
+            'population.scaling_factor', None, self.location_to_artifact_path)
+        self.art_data.all_states_initial_prev_counts = (
+            population.get_initial_real_world_population(
+                self.art_data.population_structure,
+                self.art_data.all_states_initial_prev)
+        )
+        self.art_data.model_scale = population.calculate_model_scale(
+            self.initial_simulation_population,
+            self.art_data.all_states_initial_prev_counts,
+        )
+        self.model_scale = convert_to_sim_format(
+            self.art_data.model_scale, self.draws, model_scale_measure,
+            self.age_map, self.colname_to_dtype)
+        self.person_time = self.reformat_population_structure(
+            self.art_data.population_structure,
+            append_aggregates, person_time_measure
+        )
 
     def append_aggregate_categories(self, df):
         # NOTE: If age_group column is Categorical, calling .unique() also
@@ -74,11 +106,8 @@ class AlzheimersResultsProcessor:
     def reformat_population_structure(
             self,
             population_structure,
-            draws=None,
             append_aggregates=False,
             measure='person_time',
-            age_map=None,
-            colname_to_dtype=None,
     ):
         pop_structure = (
             population_structure
