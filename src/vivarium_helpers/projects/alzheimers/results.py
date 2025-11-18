@@ -13,31 +13,41 @@ class AlzheimersResultsProcessor:
             artifact_model_number,
             run_type,
             locations=None,
-            results_dirs=None,
-            batch_results_dirs=None,
+            run_dirs=None,
+            batch_run_dirs=None,
+            all_locations_together=True,
             project_directory=None,
     ):
         self.artifact_model_number = artifact_model_number
         self.run_type=run_type
-        self.results_dirs = results_dirs
-        self.batch_results_dirs = batch_results_dirs
+        self.run_dirs = run_dirs
+        self.batch_run_dirs = batch_run_dirs
+        self.all_locations_together = all_locations_together
         self.locations = (
             locations if locations is not None else loading.LOCATIONS)
         self.project_directory = (
             project_directory if project_directory is not None
             else loading.PROJECT_DIRECTORY)
 
-        # FIXME: Really we should pass the run directories instead of
-        # the results directories, so that we can access
-        # keyspace.yaml, etc.
-        if self.batch_results_dirs is not None:
-            self.draws = load_draws_from_keyspace_files(...)
-        elif self.results_dirs is not None:
-            self.draws = load_keyspace(...)['input_draw']
+        if self.run_dirs is not None and self.batch_run_dirs is not None:
+            raise ValueError("Must specify exactly one of run_dirs or batch_run_dirs")
 
-        if self.results_dirs is not None:
+        if self.batch_run_dirs is not None:
+            # Each batch contains different draws, so concatenate them together
+            self.draws = load_draws_from_keyspace_files(self.batch_run_dirs)
+        elif self.run_dirs is not None:
+            locs = 'all' if all_locations_together else self.locations
             self.location_to_results_dir = (
-                loading.get_location_results_dict(results_dirs))
+                loading.get_location_results_dict(self.run_dirs, locs))
+            # All model runs contain the sam draws, so just read them
+            # from the first run
+            self.draws = load_keyspace(self.run_dirs[0])['input_draw']
+        else:
+            raise ValueError("run_dirs and batch_run_dirs cannot both be None")
+
+        if self.run_dirs is not None:
+            self.location_to_results_dir = (
+                loading.get_location_results_dict(self.run_dirs))
         self.location_to_artifact_path = loading.get_location_artifact_dict(
             self.locations, self.artifact_model_number)
         self.age_map = loading.get_age_map(
