@@ -397,9 +397,11 @@ def load_measure_from_batch_runs(
         kwargs['filters'] = add_parquet_AND_filter(year_filter, user_filters)
     dfs = []
     print(kwargs.get('filters'))
-    for results_dir in batch_run_dirs:
-        print(results_dir)
-        location_to_results_dir = get_location_results_dict(results_dir)
+    for run_dir in batch_run_dirs:
+        # All locations (in any location subgroup) are stored in the
+        # same output file, so we pass 'all'
+        location_to_results_dir = get_location_results_dict([run_dir], 'all')
+        print(location_to_results_dir)
         for i in range(n_location_groups):
             # Group locations into n groups. This seems to work for any
             # n and splits as evenly as possible, front-loading with
@@ -410,7 +412,7 @@ def load_measure_from_batch_runs(
                 location_group, artifact_model_number, project_dir
             )
             # location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
-            #     location_group, results_dir, artifact_model_number, project_dir
+            #     location_group, run_dir, artifact_model_number, project_dir
             # )
             print(location_to_artifact_path)
             df = load_sim_output(
