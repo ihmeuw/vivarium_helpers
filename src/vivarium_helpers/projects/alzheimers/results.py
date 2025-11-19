@@ -21,7 +21,7 @@ class AlzheimersResultsProcessor:
             project_directory=None,
     ):
         self.artifact_model_number = artifact_model_number
-        self.run_type=run_type
+        self.run_type = run_type
         self.run_dirs = run_dirs
         self.batch_run_dirs = batch_run_dirs
         self.all_locations_together = all_locations_together
@@ -166,6 +166,31 @@ class AlzheimersResultsProcessor:
             # name if None was passed
             self.data[save_name or measure] = sim_output
 
+    def process_deaths(self, deaths):
+        """Preprocess the deaths dataframe and compute averted deaths."""
+        # Filter to only deaths due to AD
+        deaths = deaths.query("entity=='alzheimers_disease_state'")
+        # Calculate averted deaths
+        averted_deaths = (
+            self.ops.averted(deaths, baseline_scenario='baseline')
+            .assign(measure='Averted Deaths Associated with AD')
+        )
+        # Do transformations
+        deaths = (
+            deaths
+            # Rename the measure
+            .assign(measure='Deaths Associated with AD')
+            # Concatenate deaths with averted deaths
+            .pipe(lambda df:
+                # Use inner join to drop "subtracted_from" column added by
+                # .averted
+                pd.concat([df, averted_deaths], join='inner', ignore_index=True))
+            # Assign same metric to both deaths and averted deaths
+            .assign(metric='Number')
+            .pipe(convert_to_categorical)
+        )
+        return deaths
+
     def scale_to_real_world(self, measure):
         """Divide the values in the `measure` dataframe by the values in
         `model_scale`, matching location and draw, and broadcasting across
@@ -190,15 +215,17 @@ class AlzheimersResultsProcessor:
             append=False,
         ):
         """Divide a measure by person-time to get a rate."""
-        if stratifications is None:
-            stratifications = ['event_year', 'age_group', 'sex']
-        rate = self.ops.drop_index('scenario').ratio(
-            measure,
-            self.person_time,
-            stratifications,
-            numerator_broadcast='scenario',
-            record_inputs=False,
-        )
+        if stratifications is not None:
+            measure = self.ops.stratify(measure, stratifications)
+            # NOTE: This may take several seconds to run, hence only runs if
+            # stratifications are explicitly passed in
+            person_time = self.ops.drop_index('scenario').stratify(
+                self.person_time, stratifications)
+        else:
+            person_time = self.person_time
+        # Divide measure by total person-time to get rate
+        rate = (self.ops.value(measure) / self.ops.value(person_time)
+                ).reset_index()
         if append:
             # Concatenate original measure DataFrame with rates, adding a
             # 'metric' column to distinguish between them
