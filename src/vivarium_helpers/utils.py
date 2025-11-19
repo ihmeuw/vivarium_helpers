@@ -239,3 +239,6 @@ class Timer:
     def __exit__(self, *exc_args):
         self._exit_time = datetime.datetime.now()
         print(f"Elapsed time: {self._exit_time - self._enter_time}")
+
+def current_time():
+    print(datetime.datetime.now())
