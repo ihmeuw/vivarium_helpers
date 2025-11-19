@@ -191,6 +191,35 @@ class AlzheimersResultsProcessor:
         )
         return deaths
 
+    def process_bbbm_tests(self, bbbm_tests):
+        """Concatenate all BBBM tests with positive BBBM tests and
+        preprocess for final outputs.
+        """
+        # Filter out counts of 'not_tested' (all 0s)
+        bbbm_tests = bbbm_tests.query("bbbm_test_results != 'not_tested'")
+        # Add up positive and negative tests to get total BBBM tests
+        total_bbbm_tests = (
+            self.ops.marginalize(bbbm_tests, 'bbbm_test_results')
+            .assign(measure='BBBM Tests')
+        )
+        # Get counts of positive tests
+        positive_bbbm_tests = (
+            bbbm_tests
+            .query("bbbm_test_results == 'positive'")
+            .assign(measure='Positive BBBM Tests')
+        )
+        # Concatenate total tests with positive tests
+        bbbm_tests = (
+            # inner join drops 'bbbm_test_results' column which has been
+            # marginalized out of the total tests dataframe
+            pd.concat(
+                [total_bbbm_tests, positive_bbbm_tests],
+                join='inner', ignore_index=True)
+            .assign(disease_stage='Preclinical AD', metric='Number')
+            .pipe(convert_to_categorical)
+        )
+        return bbbm_tests
+
     def scale_to_real_world(self, measure):
         """Divide the values in the `measure` dataframe by the values in
         `model_scale`, matching location and draw, and broadcasting across
