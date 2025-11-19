@@ -191,31 +191,76 @@ class AlzheimersResultsProcessor:
         )
         return deaths
 
-    def process_bbbm_tests(self, bbbm_tests):
+    def process_mslt_results(self, mslt_results):
+        """Process the multistate life table (MSLT) results to
+        concatenate with simulation results (BBBM tests and treatments)
+        so we can calculate rates all together.
+        """
+        def zero_out_medication_in_testing_scenario(df):
+            """Set medication initiation to 0.0 in 'BBBM Testing Only'
+            scenario, because it incorrectly had nonzero values.
+            """
+            df.loc[
+                (df['measure']=='Medication Initiation')
+                & (df['scenario']=='BBBM Testing Only'), 'value'] = 0.0
+            return df
+        # Need to map beautified names back to sim output names to
+        # process together with sim results
+        column_name_map = self.get_column_name_map(inverse=True)
+        mslt_results = (
+            mslt_results
+            .rename(columns=column_name_map)
+            .query(f"input_draw in {self.draws}")
+            .pipe(convert_to_categorical)
+            .replace(
+                {'measure':
+                 {'BBBM False Positive Tests': 'BBBM Positive Tests',
+                  'Improper Medication Uses': 'Medication Initiation'}})
+            .pipe(zero_out_medication_in_testing_scenario)
+            # TODO: Maybe also fill in baseline scenario with 0s?
+        )
+        return mslt_results
+
+    def process_bbbm_tests(self, bbbm_tests, mslt_results):
         """Concatenate all BBBM tests with positive BBBM tests and
         preprocess for final outputs.
         """
         # Filter out counts of 'not_tested' (all 0s)
-        bbbm_tests = bbbm_tests.query("bbbm_test_results != 'not_tested'")
+        # Also filter to age groups where tests are nonzero
+        bbbm_tests = bbbm_tests.query(
+            "bbbm_test_results != 'not_tested'"
+            " and age_group in ['60_to_64', '65_to_69', '70_to_74', '75_to_79']"
+        )
         # Add up positive and negative tests to get total BBBM tests
         total_bbbm_tests = (
             self.ops.marginalize(bbbm_tests, 'bbbm_test_results')
-            .assign(measure='BBBM Tests')
+            .assign(measure='BBBM Tests', disease_stage='Preclinical AD')
         )
         # Get counts of positive tests
         positive_bbbm_tests = (
             bbbm_tests
             .query("bbbm_test_results == 'positive'")
-            .assign(measure='Positive BBBM Tests')
+            .assign(
+                measure='Positive BBBM Tests', disease_stage='Preclinical AD')
         )
-        # Concatenate total tests with positive tests
+        # Filter out treatment results from preprocessed MSLT output to
+        # get counts of tests among susceptible population
+        susceptible_bbbm_tests = mslt_results.query(
+            "measure in ['BBBM Tests', 'BBBM Positive Tests']")
+
+        # Concatenate total tests with positive tests and tests among
+        # susceptible
         bbbm_tests = (
             # inner join drops 'bbbm_test_results' column which has been
-            # marginalized out of the total tests dataframe
+            # marginalized out of the total tests dataframe, as well as
+            # 'artifact_path', 'entity', and 'entity_type' columns,
+            # which are not present in MSLT results
             pd.concat(
-                [total_bbbm_tests, positive_bbbm_tests],
+                [total_bbbm_tests,
+                 positive_bbbm_tests,
+                 susceptible_bbbm_tests],
                 join='inner', ignore_index=True)
-            .assign(disease_stage='Preclinical AD', metric='Number')
+            .assign(metric='Number')
             .pipe(convert_to_categorical)
         )
         return bbbm_tests
@@ -244,26 +289,35 @@ class AlzheimersResultsProcessor:
             append=False,
         ):
         """Divide a measure by person-time to get a rate."""
+        # Filter person-time to age groups present in measure dataframe
+        # to avoid NaNs when dividing
+        person_time = self.person_time.query(
+            f"age_group in {list(measure['age_group'].unique())}")
         if stratifications is not None:
             measure = self.ops.stratify(measure, stratifications)
             # NOTE: This may take several seconds to run, hence only runs if
             # stratifications are explicitly passed in
             person_time = self.ops.drop_index('scenario').stratify(
-                self.person_time, stratifications)
-        else:
-            person_time = self.person_time
-        # Divide measure by total person-time to get rate
+                person_time, stratifications)
+
+        # Divide measure by total person-time to get rate NOTE: I'm not
+        # using the ops.ratio function because, in addition to
+        # specifying the stratifications, it would require explicitly
+        # broadcasting over columns we need to keep, like 'measure',
+        # whereas using ops.value automatically keeps all columns.
         rate = (self.ops.value(measure) / self.ops.value(person_time)
                 ).reset_index()
+
+        # Assign the 'metric' column to 'Rate', using a dtype that also
+        # includes 'Number'
+        metric_dtype = pd.CategoricalDtype(['Number', 'Rate'])
+        rate = rate.assign(
+                metric=constant_categorical('Rate', len(rate), metric_dtype))
         if append:
-            # Concatenate original measure DataFrame with rates, adding a
-            # 'metric' column to distinguish between them
-            metric_dtype = pd.CategoricalDtype(['Number', 'Rate'])
+            # Concatenate original measure DataFrame with rates
             measure = measure.assign(
                 metric=constant_categorical(
                     'Number', len(measure), metric_dtype))
-            rate = rate.assign(
-                metric=constant_categorical('Rate', len(rate), metric_dtype))
             result = pd.concat([measure, rate], ignore_index=True)
         else:
             # Just return the calculated rates
@@ -355,31 +409,3 @@ class AlzheimersResultsProcessor:
             [column_order]
         )
         return df
-
-    def process_mslt_results(self, mslt_results):
-        """Process the multistate life table (MSLT) results to
-        concatenate with simulation results so we can calculate rates.
-        """
-        def zero_out_medication_in_testing_scenario(df):
-            """Set medication initiation to 0.0 in 'BBBM Testing Only'
-            scenario, because it incorrectly had nonzero values.
-            """
-            df.loc[
-                (df['measure']=='Medication Initiation')
-                & (df['scenario']=='BBBM Testing Only'), 'value'] = 0.0
-            return df
-        # Need to map beautified names back to sim output names to
-        # process together with sim results
-        column_name_map = self.get_column_name_map(inverse=True)
-        mslt_results = (
-            mslt_results
-            .rename(columns=column_name_map)
-            .query(f"input_draw in {self.draws}")
-            .pipe(convert_to_categorical)
-            .replace(
-                {'measure':
-                 {'BBBM False Positive Tests': 'BBBM Positive Tests',
-                  'Improper Medication Uses': 'Medication Initiation'}})
-            .pipe(zero_out_medication_in_testing_scenario)
-        )
-        return mslt_results
