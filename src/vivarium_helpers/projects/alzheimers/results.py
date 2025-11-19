@@ -270,6 +270,38 @@ class AlzheimersResultsProcessor:
             result = rate
         return result
 
+    def get_column_name_map(
+            self,
+            # disease_stage is a placeholder we use in case there is no
+            # such column; the actual column name depends on the dataset
+            disease_stage_column='disease_stage',
+            inverse=False,
+        ):
+        """Get the default mapping of sim output columns to final
+        "beautified" column names, or the inverse of this map (for
+        conforming MSLT output to sim output before concatenating and
+        computing rates).
+        """
+        column_name_map = {
+            'event_year': 'Year',
+            'age_group': 'Age',
+            'location': 'Location',
+            'sex': 'Sex',
+            'scenario': 'Scenario',
+            'measure': 'Measure',
+            'metric': 'Metric',
+            disease_stage_column: 'Disease Stage',
+            'input_draw': 'Draw',
+            'value': 'Value',
+            'mean': 'Mean',
+            'lower': '95% UI Lower',
+            'upper': '95% UI Upper',
+        }
+        if inverse:
+            # Map beautified columns back to standard sim columns
+            column_name_map = {v: k for k, v in column_name_map.items()}
+        return column_name_map
+
     def summarize_and_beautify(
             self,
             df,
@@ -281,19 +313,7 @@ class AlzheimersResultsProcessor:
         filter to desired columns, and put them in the right order.
         """
         # Default column name map
-        column_name_map = {
-            'event_year': 'Year',
-            'age_group': 'Age',
-            'location': 'Location',
-            'sex': 'Sex',
-            'scenario': 'Scenario',
-            'measure': 'Measure',
-            'metric': 'Metric',
-            disease_stage_column: 'Disease Stage',
-            'mean': 'Mean',
-            'lower': '95% UI Lower',
-            'upper': '95% UI Upper',
-        }
+        column_name_map = self.get_column_name_map(disease_stage_column)
         disease_stage_name_map = {
             'alzheimers_blood_based_biomarker_state': 'Preclinical AD',
             'alzheimers_mild_cognitive_impairment_state': 'MCI due to AD',
@@ -335,3 +355,31 @@ class AlzheimersResultsProcessor:
             [column_order]
         )
         return df
+
+    def process_mslt_results(self, mslt_results):
+        """Process the multistate life table (MSLT) results to
+        concatenate with simulation results so we can calculate rates.
+        """
+        def zero_out_medication_in_testing_scenario(df):
+            """Set medication initiation to 0.0 in 'BBBM Testing Only'
+            scenario, because it incorrectly had nonzero values.
+            """
+            df.loc[
+                (df['measure']=='Medication Initiation')
+                & (df['scenario']=='BBBM Testing Only'), 'value'] = 0.0
+            return df
+        # Need to map beautified names back to sim output names to
+        # process together with sim results
+        column_name_map = self.get_column_name_map(inverse=True)
+        mslt_results = (
+            mslt_results
+            .rename(columns=column_name_map)
+            .query(f"input_draw in {self.draws}")
+            .pipe(convert_to_categorical)
+            .replace(
+                {'measure':
+                 {'BBBM False Positive Tests': 'BBBM Positive Tests',
+                  'Improper Medication Uses': 'Medication Initiation'}})
+            .pipe(zero_out_medication_in_testing_scenario)
+        )
+        return mslt_results
