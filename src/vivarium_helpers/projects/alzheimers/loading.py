@@ -25,6 +25,17 @@ LOCATIONS = [
     'United Kingdom',
 ]
 
+# Parquet filters in disjunctive normal form to use when loading data
+# for final results, to save memory and time
+FINAL_RESULTS_FILTERS = {
+    # Filter out 'other_causes' deaths since we don't need it
+    'deaths': [('entity', '=', 'alzheimers_disease_state')],
+    # Filter out 'other_causes' YLLs
+    'ylls': [('entity', '=', 'alzheimers_disease_state')],
+    # Filter out 'treatment' and 'all_causes' YLDs
+    'ylds': [('entity', '==', 'alzheimers_disease_and_other_dementias')],
+}
+
 def get_results_directory(run_directory):
     """Get the path to the results subdirectory of a model run directory."""
     run_directory = Path(run_directory)
