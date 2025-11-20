@@ -55,8 +55,11 @@ class AlzheimersResultsProcessor:
         self.initial_simulation_population = (
             population.get_initial_simulation_population(self.run_type))
 
+        # Operator to perform operations on simulation results
         self.ops = VPHOperator(location_col=True)
+        # dictionary to store simulation results
         self.data = VPHResults(ops=self.ops)
+        # dictionary to store artifact data
         self.art_data = AttributeMapping()
 
     def load_population_data(
@@ -229,7 +232,7 @@ class AlzheimersResultsProcessor:
         # Also filter to age groups where tests are nonzero
         bbbm_tests = bbbm_tests.query(
             "bbbm_test_results != 'not_tested'"
-            " and age_group in ['60_to_64', '65_to_69', '70_to_74', '75_to_79']"
+            " and age_group in @loading.TESTING_ELIGIBLE_AGE_GROUPS"
         )
         # Add up positive and negative tests to get total BBBM tests
         total_bbbm_tests = (
@@ -292,6 +295,29 @@ class AlzheimersResultsProcessor:
         )
         return csf_pet_tests
 
+    def process_treatments(self, treatments):
+        """Preprocess treatment counts."""
+        start_treatment = [
+            'waiting_for_treatment_to_full_effect_long',
+            'waiting_for_treatment_to_full_effect_short']
+        treatments = (
+            treatments
+            .query(
+                "sub_entity in @start_treatment"
+                " and age_group in @loading.TREATMENT_ELIGIBLE_AGE_GROUPS"
+            )
+            .assign(measure=lambda df: df['sub_entity'].replace(
+                {'waiting_for_treatment_to_full_effect_long':
+                    'Medication Completion',
+                 'waiting_for_treatment_to_full_effect_short':
+                    'Medication Discontinuation'}))
+            .pipe(self.ops.aggregate_categories, 'measure',
+                  {'Medication Initiation':
+                    ['Medication Completion', 'Medication Discontinuation']},
+                    append=True)
+            .pipe(convert_to_categorical)
+        )
+        return treatments
 
     def scale_to_real_world(self, measure):
         """Divide the values in the `measure` dataframe by the values in
