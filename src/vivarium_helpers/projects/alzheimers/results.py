@@ -295,8 +295,17 @@ class AlzheimersResultsProcessor:
         )
         return csf_pet_tests
 
-    def process_treatments(self, treatments):
-        """Preprocess treatment counts."""
+    def process_treatments(self, treatments, mslt_results):
+        """Preprocess treatment counts, concatenating sim results with
+        MSLT results.
+        """
+        # Filter MSLT results to treatments among susceptible population
+        # TODO: Fill in age group 80-84 with 0s to match age groups for
+        # sim results, and so that we don't get NaNs when computing
+        # rates?
+        susceptible_treatments = mslt_results.query(
+            "measure=='Medication Initiation'")
+        # Filter to transitions corresponding to starting treatment
         start_treatment = [
             'waiting_for_treatment_to_full_effect_long',
             'waiting_for_treatment_to_full_effect_short']
@@ -310,11 +319,15 @@ class AlzheimersResultsProcessor:
                 {'waiting_for_treatment_to_full_effect_long':
                     'Medication Completion',
                  'waiting_for_treatment_to_full_effect_short':
-                    'Medication Discontinuation'}))
+                    'Medication Discontinuation'}),
+                    disease_stage='Preclinical AD'
+                    )
             .pipe(self.ops.aggregate_categories, 'measure',
                   {'Medication Initiation':
                     ['Medication Completion', 'Medication Discontinuation']},
                     append=True)
+            .pipe(lambda df: pd.concat(
+                [df, susceptible_treatments], join='inner', ignore_index=True))
             .pipe(convert_to_categorical)
         )
         return treatments
