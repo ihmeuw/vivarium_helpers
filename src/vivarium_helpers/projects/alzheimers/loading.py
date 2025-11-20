@@ -25,6 +25,12 @@ LOCATIONS = [
     'United Kingdom',
 ]
 
+# TODO: Maybe move these somewhere that makes more sense
+TESTING_ELIGIBLE_AGE_GROUPS = [
+    '60_to_64', '65_to_69', '70_to_74', '75_to_79']
+TREATMENT_ELIGIBLE_AGE_GROUPS = [
+    '60_to_64', '65_to_69', '70_to_74', '75_to_79', '80_to_84']
+
 # Parquet filters in disjunctive normal form to use when loading data
 # for final results, to save memory and time
 FINAL_RESULTS_FILTERS = {
@@ -34,6 +40,21 @@ FINAL_RESULTS_FILTERS = {
     'ylls': [('entity', '=', 'alzheimers_disease_state')],
     # Filter out 'treatment' and 'all_causes' YLDs
     'ylds': [('entity', '==', 'alzheimers_disease_and_other_dementias')],
+    # Filter out 'not_tested' (unneeded and all 0.0 anyway)
+    'counts_bbbm_tests': [
+        ('bbbm_test_results', '!=', 'not_tested'),
+        ('age_group', 'in', TESTING_ELIGIBLE_AGE_GROUPS),
+        ],
+    # Filter out 'not_tested' and 'bbbm' among those eligible for CSF/PET
+    'counts_baseline_tests_among_eligible': [('testing_state', 'in', ['csf', 'pet'])],
+    # Filter to the transitions relevant to the measures we care about
+    'transition_count_treatment': [
+        ('sub_entity', 'in',
+         ['waiting_for_treatment_to_full_effect_long',
+          'waiting_for_treatment_to_full_effect_short']
+        ),
+        ('age_group', 'in', TREATMENT_ELIGIBLE_AGE_GROUPS),
+    ]
 }
 
 def get_results_directory(run_directory):
