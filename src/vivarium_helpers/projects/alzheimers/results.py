@@ -265,6 +265,34 @@ class AlzheimersResultsProcessor:
         )
         return bbbm_tests
 
+    def process_csf_pet_tests(self, csf_pet_tests):
+        """Preprocess CSF and PET test counts."""
+        # Filter out 'not_tested' and 'bbbm' among those eligible for
+        # CSF/PET testing, and assign measure column
+        csf_pet_tests = (
+            csf_pet_tests
+            .query("testing_state in ['csf', 'pet']")
+            .assign(measure=lambda df: df['testing_state'].map(
+                lambda s: f'{s.upper()} Tests'))
+        )
+        # Compute averted tests and assign measure
+        averted_csf_pet_tests = (
+            self.ops.averted(csf_pet_tests, baseline_scenario='baseline')
+            .assign(measure=lambda df: df['measure'].map(
+                lambda s: f'Averted {s}'))
+        )
+        # Concatenate and add metric column
+        csf_pet_tests = (
+            # Inner join drops 'subtracted_from' column added by
+            # .averted function
+            pd.concat([csf_pet_tests, averted_csf_pet_tests],
+                      join='inner', ignore_index=True)
+            .assign(metric='Number')
+            .pipe(convert_to_categorical)
+        )
+        return csf_pet_tests
+
+
     def scale_to_real_world(self, measure):
         """Divide the values in the `measure` dataframe by the values in
         `model_scale`, matching location and draw, and broadcasting across
