@@ -6,6 +6,7 @@ from ...vph_output.loading import load_draws_from_keyspace_files, load_keyspace
 from ...vph_artifact.operations import convert_to_sim_format
 from . import loading, population
 import pandas as pd
+from codetiming import Timer
 
 class AlzheimersResultsProcessor:
     """Class for processing results of the Alzheimer's sim."""
@@ -194,6 +195,65 @@ class AlzheimersResultsProcessor:
         )
         return deaths
 
+    def process_dalys(self, ylls, ylds):
+        """Process YLLs and YLDs dataframes to get DALYs and averted DALYs.
+        """
+        # Filter to only YLLs and YLDs due to AD, and rename so the entity
+        # is the same between the two, so that the VPHResults object will
+        # add YLLs and YLDs instead of keeping them separate
+        ylls = (
+            ylls
+            .query("entity=='alzheimers_disease_state'")
+            # Choose an arbitrary diseas name
+            .replace({'entity': {'alzheimers_disease_state': 'AD'}})
+            # Add a sub_entity column to specify disease stage
+            .assign(sub_entity='alzheimers_disease_state')
+            # Assign 0 YLLs to the MCI state so that when we sum with YLDs,
+            # DALYs for MCI will equal YLDs. If we didn't add these 0's, it
+            # would just aggregate across disease states instead of keeping
+            # them separate.
+            .pipe(
+                lambda df: pd.concat([df, df.assign(
+                    sub_entity='alzheimers_mild_cognitive_impairment_state',
+                    value=0.0
+                )])
+            )
+            .pipe(convert_to_categorical)
+        )
+        ylds = (
+            ylds
+            .query("entity=='alzheimers_disease_and_other_dementias'")
+            # Choose the same arbitrary disease name
+            .replace({'entity': {'alzheimers_disease_and_other_dementias': 'AD'}})
+            .pipe(convert_to_categorical)
+        )
+        # Create a VPHResults object to calculate DALYs
+        results = VPHResults(ylls=ylls, ylds=ylds, ops=self.ops)
+        # Calculate DALYs and compress
+        dalys = results.get_burden('dalys').pipe(convert_to_categorical)
+        # print_memory_usage(dalys, 'dalys')
+        # print(dalys.dtypes)
+
+        # Calculate averted DALYs
+        averted_dalys = (
+            self.ops.averted(dalys, baseline_scenario='baseline')
+            .assign(measure='Averted DALYs Associated with AD')
+        )
+        dalys = (
+            dalys
+            # Rename the measure
+            .assign(measure='DALYs Associated with AD')
+            # Concatenate deaths with averted DALYs
+            .pipe(lambda df:
+                # Use inner join to drop "subtracted_from" column added by
+                # .averted
+                pd.concat([df, averted_dalys], join='inner', ignore_index=True))
+            # Assign same metric to both DALYs and averted DALYs
+            .assign(metric='Number')
+            .pipe(convert_to_categorical)
+        )
+        return dalys
+
     def process_mslt_results(self, mslt_results):
         """Process the multistate life table (MSLT) results to
         concatenate with simulation results (BBBM tests and treatments)
@@ -290,7 +350,7 @@ class AlzheimersResultsProcessor:
             # .averted function
             pd.concat([csf_pet_tests, averted_csf_pet_tests],
                       join='inner', ignore_index=True)
-            .assign(metric='Number')
+            .assign(metric='Number', disease_stage='MCI due to AD')
             .pipe(convert_to_categorical)
         )
         return csf_pet_tests
@@ -423,6 +483,7 @@ class AlzheimersResultsProcessor:
             column_name_map = {v: k for k, v in column_name_map.items()}
         return column_name_map
 
+    @Timer(name='SummarizingTimer', initial_text=True)
     def summarize_and_beautify(
             self,
             df,
