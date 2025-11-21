@@ -1,5 +1,7 @@
 """Code used to load files for the CSU Alzheimer's project."""
 from typing import Literal
+from codetiming import Timer
+import os
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -56,6 +58,12 @@ FINAL_RESULTS_FILTERS = {
         ('age_group', 'in', TREATMENT_ELIGIBLE_AGE_GROUPS),
     ]
 }
+
+def list_paths(directory):
+    """List paths of all entries in a directory."""
+    with os.scandir(directory) as entries:
+        paths = [entry.path for entry in entries]
+    return paths
 
 def get_results_directory(run_directory):
     """Get the path to the results subdirectory of a model run directory."""
@@ -396,6 +404,7 @@ def load_sim_output(
     df = pd.concat(dfs, ignore_index=True)
     return df
 
+@Timer(name="BatchLoadingTimer", initial_text=True)
 def load_measure_from_batch_runs(
         measure,
         batch_run_dirs,
