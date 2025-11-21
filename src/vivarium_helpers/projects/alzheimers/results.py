@@ -329,7 +329,7 @@ class AlzheimersResultsProcessor:
             .pipe(convert_to_categorical)
             .replace(
                 {'measure':
-                 {'BBBM False Positive Tests': 'BBBM Positive Tests',
+                 {'BBBM False Positive Tests': 'Positive BBBM Tests',
                   'Improper Medication Uses': 'Medication Initiation'}})
             .pipe(zero_out_medication_in_testing_scenario)
             # TODO: Maybe also fill in baseline scenario with 0s?
@@ -361,7 +361,7 @@ class AlzheimersResultsProcessor:
         # Filter out treatment results from preprocessed MSLT output to
         # get counts of tests among susceptible population
         susceptible_bbbm_tests = mslt_results.query(
-            "measure in ['BBBM Tests', 'BBBM Positive Tests']")
+            "measure in ['BBBM Tests', 'Positive BBBM Tests']")
 
         # Concatenate total tests with positive tests and tests among
         # susceptible
