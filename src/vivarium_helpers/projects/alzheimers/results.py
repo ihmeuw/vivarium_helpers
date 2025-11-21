@@ -254,6 +254,22 @@ class AlzheimersResultsProcessor:
         )
         return dalys
 
+    def process_prevalence_counts(self, person_time_ad):
+        """Process person-time in AD states to get prevalence counts of
+        each state.
+        """
+        prevalence_counts = (
+            person_time_ad
+            # Marginalize over treatment column to get total person-time in
+            # each AD state
+            .pipe(self.ops.marginalize, 'treatment')
+            # Assign measure and metric
+            .assign(measure='Prevalence', metric='Number')
+            # Save memory if possible
+            .pipe(convert_to_categorical)
+        )
+        return prevalence_counts
+
     def process_mslt_results(self, mslt_results):
         """Process the multistate life table (MSLT) results to
         concatenate with simulation results (BBBM tests and treatments)
