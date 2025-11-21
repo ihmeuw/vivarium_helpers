@@ -33,7 +33,7 @@ def convert_to_sim_format(
         df
         # Filter to specified draws
         .pipe(lambda df:
-              df.filter(regex='|'.join([f'draw_{d}' for d in draws]))
+              df.filter(regex='|'.join([f'^draw_{d}$' for d in draws]))
               if draws is not None else df)
         .rename_axis(columns='input_draw')
         # Convert draws to integers
