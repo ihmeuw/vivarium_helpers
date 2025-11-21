@@ -1,8 +1,9 @@
 from ...utils import (AttributeMapping, constant_categorical, current_time,
-                      convert_to_categorical)
+                      convert_to_categorical, print_memory_usage)
 from ...vph_output.measures import VPHResults
 from ...vph_output.operations import VPHOperator
 from ...vph_output.loading import load_draws_from_keyspace_files, load_keyspace
+from ...vph_output.cleaning import extract_transition_states
 from ...vph_artifact.operations import convert_to_sim_format
 from . import loading, population
 import pandas as pd
@@ -269,6 +270,41 @@ class AlzheimersResultsProcessor:
             .pipe(convert_to_categorical)
         )
         return prevalence_counts
+
+    def process_incidence(self, incidence_bbbm, transitions_ad):
+        """Preprocess incidence data."""
+        incidence_bbbm = (
+            incidence_bbbm
+            # Assign to_state to match with transition counts dataframe
+            # after extracting to and from states from transitions
+            .assign(to_state='alzheimers_blood_based_biomarker_state')
+        )
+        transitions_ad = (
+            transitions_ad
+            # Display memory usage of loaded dataframe after adding columns
+            .pipe(lambda df: print_memory_usage(df, 'raw transitions') or df)
+            .pipe(self.ops.marginalize, 'treatment')
+            # Display memory usage of loaded dataframe after adding columns
+            .pipe(lambda df: print_memory_usage(df, 'after marginalizing treatment') or df)
+            # Extract to and from states from transitions, and add them in
+            # new columns
+            .pipe(lambda df: df.join(
+                extract_transition_states(df, 'sub_entity'))
+            )
+            # Display memory usage of loaded dataframe after adding columns
+            .pipe(lambda df: print_memory_usage(df, 'after state extraction') or df)
+            .pipe(lambda df: print(df.to_state.unique()) or df)
+        )
+        incidence = (
+            # Concatenate BBBM incidence with MCI and AD incidence
+            # Inner join drops irrelevant columns and avoids NaNs
+            pd.concat([incidence_bbbm, transitions_ad], join='inner')
+            # Assign measure and metric
+            .assign(measure='Incidence', metric='Number')
+            # Save memory (and time) if possible
+            .pipe(convert_to_categorical)
+        )
+        return incidence
 
     def process_mslt_results(self, mslt_results):
         """Process the multistate life table (MSLT) results to
