@@ -42,6 +42,12 @@ FINAL_RESULTS_FILTERS = {
     'ylls': [('entity', '=', 'alzheimers_disease_state')],
     # Filter out 'treatment' and 'all_causes' YLDs
     'ylds': [('entity', '==', 'alzheimers_disease_and_other_dementias')],
+    # No filters for AD prevalence
+    'person_time_alzheimers_disease_and_other_dementias': None,
+    # No filters for new simulant counts (BBBM incidence)
+    'counts_new_simulants': None,
+    # No filters for AD transition counts (MCI and AD incidence)
+    'transition_count_alzheimers_disease_and_other_dementias': None,
     # Filter out 'not_tested' (unneeded and all 0.0 anyway)
     'counts_bbbm_tests': [
         ('bbbm_test_results', '!=', 'not_tested'),
