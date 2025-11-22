@@ -326,12 +326,15 @@ class AlzheimersResultsProcessor:
             mslt_results
             .rename(columns=column_name_map)
             .query(f"input_draw in {self.draws}")
-            .pipe(convert_to_categorical)
             .replace(
                 {'measure':
                  {'BBBM False Positive Tests': 'Positive BBBM Tests',
                   'Improper Medication Uses': 'Medication Initiation'}})
             .pipe(zero_out_medication_in_testing_scenario)
+            # Scale down to simulation scale to match sim outputs since
+            # we'll be scaling back up later
+            .pipe(self.scale_to_simulation)
+            .pipe(convert_to_categorical)
             # TODO: Maybe also fill in baseline scenario with 0s?
         )
         return mslt_results
@@ -443,6 +446,22 @@ class AlzheimersResultsProcessor:
             .pipe(convert_to_categorical)
         )
         return treatments
+
+    def scale_to_simulation(self, measure):
+        """Multiply the values in the `measure` dataframe by the values in
+        `model_scale`, matching location and draw, and broadcasting across
+        other columns in `measure`. This converts the value of the measure
+        in the real-world population to a scaled-down version on the
+        same scale as the simulation.
+        """
+        measure = self.ops.value(measure)
+        # NOTE: Reindexing preserves categoricals (in location column), but
+        # results in all NaN's for some reason
+        model_scale = self.ops.value(self.model_scale)#.reindex(measure.index)
+        # scaled_measure = measure.divide(model_scale, axis=0).reset_index()
+        scaled_measure = (measure * model_scale).reset_index()
+        #.dropna() # Alternative to filtering draws above
+        return scaled_measure
 
     def scale_to_real_world(self, measure):
         """Divide the values in the `measure` dataframe by the values in
