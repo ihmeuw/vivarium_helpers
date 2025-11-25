@@ -117,7 +117,7 @@ class AlzheimersResultsProcessor:
     def reformat_population_structure(
             self,
             population_structure,
-            append_aggregates=False,
+            append_aggregates=True,
             measure='person_time',
     ):
         pop_structure = (
