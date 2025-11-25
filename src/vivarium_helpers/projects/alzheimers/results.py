@@ -196,7 +196,7 @@ class AlzheimersResultsProcessor:
                 # .averted
                 pd.concat([df, averted_deaths], join='inner', ignore_index=True))
             # Assign same metric to both deaths and averted deaths
-            .assign(metric='Number')
+            .assign(metric='Number', disease_stage=lambda df: df['entity'])
             .pipe(convert_to_categorical)
         )
         return deaths
@@ -255,7 +255,7 @@ class AlzheimersResultsProcessor:
                 # .averted
                 pd.concat([df, averted_dalys], join='inner', ignore_index=True))
             # Assign same metric to both DALYs and averted DALYs
-            .assign(metric='Number')
+            .assign(metric='Number', disease_stage=lambda df: df['sub_entity'])
             .pipe(convert_to_categorical)
         )
         return dalys
@@ -270,7 +270,8 @@ class AlzheimersResultsProcessor:
             # each AD state
             .pipe(self.ops.marginalize, 'treatment')
             # Assign measure and metric
-            .assign(measure='Prevalence', metric='Number')
+            .assign(measure='Prevalence', metric='Number',
+                    disease_stage=lambda df: df['sub_entity'])
             # Save memory if possible
             .pipe(convert_to_categorical)
         )
@@ -304,8 +305,9 @@ class AlzheimersResultsProcessor:
             # Concatenate BBBM incidence with MCI and AD incidence
             # Inner join drops irrelevant columns and avoids NaNs
             pd.concat([incidence_bbbm, transitions_ad], join='inner')
-            # Assign measure and metric
-            .assign(measure='Incidence', metric='Number')
+            # Assign measure, metric, and disease stage columns
+            .assign(measure='Incidence', metric='Number',
+                    disease_stage=lambda df: df['to_state'])
             # Save memory (and time) if possible
             .pipe(convert_to_categorical)
         )
@@ -568,7 +570,7 @@ class AlzheimersResultsProcessor:
             df,
             # By default, assume disease stage is stored in sub_entity
             # column, but allow passing a different column
-            disease_stage_column='sub_entity',
+            disease_stage_column='disease_stage',
         ):
         """Append rates, scale to real-world, summarize, rename columns,
         filter to desired columns, and put them in the right order.
