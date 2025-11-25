@@ -2,7 +2,8 @@ import pandas as pd
 import collections
 from ..utils import (
     _ensure_iterable, _ensure_columns_not_levels, list_columns,
-    print_memory_usage, constant_categorical, lower, upper
+    print_memory_usage, constant_categorical, lower, upper,
+    lists_are_mutually_exclusive
 )
 
 # TODO: Maybe put column names in an Enum
@@ -297,12 +298,21 @@ class VPHOperator:
         supercategory_to_categories: dict
             A dictionary mapping the name of each supercategory to a list of the categories
             comprising the supercategory, or to a single category.
+
+            The lists of categories for each supercategory must be
+            mutually exclusive because each category can be mapped to at
+            most one supercategory when aggregating.
+            To aggregate non-mutually exclusive
+            lists of categories (e.g., all_ages and ages 60_plus), call
+            this function multiple times.
+
             Any category not appearing in one of the lists of categories
             for a supercategory will get mapped to itself.
 
         append: bool, default False
-            Whether to append the aggregated supercategories to the original dataframe or to
-            return a dataframe containing only the aggregated supercategories.'
+            Whether to append the original unaggregated categories to
+            the result, or to return only the aggregated supercategories
+            (and any categories not mapped to a supercategory).
 
         Returns
         -------
@@ -310,6 +320,21 @@ class VPHOperator:
             A new dataframe which contains the aggregated supercategories, appended to the end of
             `df` if `append` is True, or containing only the supercategories if `append` is False.
         """
+        # Make sure lists of categories are mutually exclusive, because
+        # we can map each category to at most one supercategory when
+        # aggregating.
+        if not lists_are_mutually_exclusive(supercategory_to_categories.values()):
+            raise ValueError(
+                "The sets of categories in each supercategory must be mutually exclusive")
+        # Ensure that no supercategory is equal to an existing category,
+        # because allowing mapping to an existing category could be
+        # confusing, especially if append=True.
+        existing_categories = df[category_col].unique()
+        if any(supercategory in existing_categories
+               for supercategory in supercategory_to_categories):
+            raise ValueError(
+                "Supercategories cannot be equal to existing categories")
+
         # Reverse the dictionary, unpacking the lists
         category_to_supercategory = {
             category: supercategory
@@ -337,7 +362,11 @@ class VPHOperator:
                 df = df.astype({category_col: aggregated_column_dtype})
                 aggregated_df = aggregated_df.astype(
                     {category_col: aggregated_column_dtype})
-            return pd.concat([df, aggregated_df], ignore_index=True)
+            # Determine which categories were in the original dataframe
+            # but not in the aggregated version
+            missing_rows = df.query(
+                f"{category_col} in @category_to_supercategory")
+            return pd.concat([missing_rows, aggregated_df], ignore_index=True)
         else:
             return aggregated_df
 
