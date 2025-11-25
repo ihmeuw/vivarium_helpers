@@ -98,11 +98,16 @@ class AlzheimersResultsProcessor:
         # NOTE: If age_group column is Categorical, calling .unique() also
         # returns a Categorical, which must be explicitly converted to a
         # list in order for the _ensure_iterable function to work
-        all_ages_map = {'all_ages': list(df['age_group'].unique())}
+        twenty_five_plus_map = {'25_plus': self.age_map['age_group'].to_list()}
+        sixty_plus_map = {
+            '60_plus': [a for a in self.age_map['age_group'] if a >= '60_to_64']
+            }
         both_sexes_map = {'Both': ['Male', 'Female']}
         df = (
             df
-            .pipe(self.ops.aggregate_categories, 'age_group', all_ages_map,
+            .pipe(self.ops.aggregate_categories, 'age_group', twenty_five_plus_map,
+                  append=True)
+            .pipe(self.ops.aggregate_categories, 'age_group', sixty_plus_map,
                   append=True)
             .pipe(self.ops.aggregate_categories, 'sex', both_sexes_map,
                   append=True)
@@ -482,14 +487,17 @@ class AlzheimersResultsProcessor:
     def calculate_rate(
             self,
             measure,
+            person_time=None,
             # Default stratifications: ['event_year', 'age_group', 'sex']
             stratifications=None,
             append=False,
         ):
         """Divide a measure by person-time to get a rate."""
+        if person_time is None:
+            person_time = self.person_time
         # Filter person-time to age groups present in measure dataframe
         # to avoid NaNs when dividing
-        person_time = self.person_time.query(
+        person_time = person_time.query(
             f"age_group in {list(measure['age_group'].unique())}")
         if stratifications is not None:
             measure = self.ops.stratify(measure, stratifications)
@@ -589,8 +597,8 @@ class AlzheimersResultsProcessor:
             .query('event_year >= 2025')
             # Scale to real-world values
             .pipe(self.scale_to_real_world)
-            # # Append rows for "all ages" and "both sexes"
-            # .pipe(append_aggregate_categories, ops)
+            # Append rows for "all ages" and "both sexes"
+            .pipe(self.append_aggregate_categories)
             # Calculate and append rates
             .pipe(self.calculate_rate, append=True)
             # Compress data if possible
