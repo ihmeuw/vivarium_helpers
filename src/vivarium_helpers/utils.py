@@ -242,3 +242,13 @@ class Timer:
 
 def current_time():
     print(datetime.datetime.now())
+
+def lists_are_mutually_exclusive(lists):
+    """Checks whether a collection of lists is mutually exclusive."""
+    seen = set()
+    for lst in lists:
+        current_set = set(_ensure_iterable(lst))
+        if not seen.isdisjoint(current_set):
+            return False
+        seen.update(current_set)
+    return True
