@@ -98,15 +98,15 @@ class AlzheimersResultsProcessor:
         # NOTE: If age_group column is Categorical, calling .unique() also
         # returns a Categorical, which must be explicitly converted to a
         # list in order for the _ensure_iterable function to work
-        twenty_five_plus_map = {'25_plus': self.age_map['age_group'].to_list()}
+        # twenty_five_plus_map = {'25_plus': self.age_map['age_group'].to_list()}
         sixty_plus_map = {
             '60_plus': [a for a in self.age_map['age_group'] if a >= '60_to_64']
             }
         both_sexes_map = {'Both': ['Male', 'Female']}
         df = (
             df
-            .pipe(self.ops.aggregate_categories, 'age_group', twenty_five_plus_map,
-                  append=True)
+            # .pipe(self.ops.aggregate_categories, 'age_group', twenty_five_plus_map,
+            #       append=True)
             .pipe(self.ops.aggregate_categories, 'age_group', sixty_plus_map,
                   append=True)
             .pipe(self.ops.aggregate_categories, 'sex', both_sexes_map,
@@ -568,8 +568,8 @@ class AlzheimersResultsProcessor:
     def summarize_and_beautify(
             self,
             df,
-            # By default, assume disease stage is stored in sub_entity
-            # column, but allow passing a different column
+            # By default, assume disease stage is stored in
+            # disease_stage column, but allow passing a different column
             disease_stage_column='disease_stage',
         ):
         """Append rates, scale to real-world, summarize, rename columns,
