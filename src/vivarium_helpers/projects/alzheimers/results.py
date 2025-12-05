@@ -318,6 +318,19 @@ class AlzheimersResultsProcessor:
         concatenate with simulation results (BBBM tests and treatments)
         so we can calculate rates all together.
         """
+        def convert_draws_to_integers(df):
+            """If df['input_draw'] contains strings, remove the prefix
+            'draw_' to convert values from, e.g., 'draw_123' to 123. If
+            the column doesn't contain strings, do nothing.
+            """
+            draw_col = df['input_draw']
+            if pd.api.types.is_string_dtype(draw_col.dtype):
+                df = df.assign(
+                    input_draw=draw_col.str.removeprefix('draw_')
+                    .astype(self.colname_to_dtype['input_draw'])
+                )
+            return df
+
         def zero_out_medication_in_testing_scenario(df):
             """Set medication initiation to 0.0 in 'BBBM Testing Only'
             scenario, because it incorrectly had nonzero values.
@@ -332,6 +345,7 @@ class AlzheimersResultsProcessor:
         mslt_results = (
             mslt_results
             .rename(columns=column_name_map)
+            .pipe(convert_draws_to_integers)
             .query(f"input_draw in {self.draws}")
             .replace(
                 {'measure':
