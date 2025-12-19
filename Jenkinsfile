@@ -22,12 +22,12 @@ Note that updating the shared repo will take affect on the next pipeline invocat
 
 // Load the get_vbu_version function from vivarium_build_utils/bootstrap/
 // (the directory to load from is defined in the Jenkins shared library configuration)
-// FIXME: PIN CORRECTLY WHEN DONE DEBUGGING
-@Library("get_vbu_version@sbachmei/split-mypy-from-formatting") _
-// @Library("get_vbu_version@main") _
+@Library("get_vbu_version@main") _
 
 // Load the full vivarium_build_utils library at the expected version
-library("vivarium_build_utils@${get_vbu_version()}")
+// FIXME: PIN CORRECTLY WHEN DONE DEBUGGING
+// library("vivarium_build_utils@${get_vbu_version()}")
+library("vivarium_build_utils@sbachmei/split-mypy-from-formatting")
 
 reusable_pipeline(
     // Add additional branches for cron jobs below.
