@@ -2,11 +2,12 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import CategoricalDtype
 
+
 def sample_array_from_propensity(
     propensity,
     categories,
     category_cdf,
-    method='select',
+    method="select",
     default_category=None,
 ):
     """Sample categories using the propensities.
@@ -21,15 +22,15 @@ def sample_array_from_propensity(
     # ndim != 2, and verify that I am specifying the correct shapes
     here.
     """
-    if method == 'select':
+    if method == "select":
         # logger.debug(f"{categories=}")
         # In numpy 2.0, it is necessary to have the default be
         # of the same dtype as the other choices
         if default_category is None:
             if isinstance(categories, pd.Series):
-                default_category=categories.array[-1]
+                default_category = categories.array[-1]
             else:
-                default_category=categories[-1]
+                default_category = categories[-1]
         # If category_cdf is 1-dimensional, broadcast instead of failing
         # when there is more than one propensity
         # Note: If there is only 1 propensity, this makes it so its
@@ -38,30 +39,29 @@ def sample_array_from_propensity(
         if isinstance(category_cdf, pd.DataFrame):
             category_cdf = category_cdf.squeeze()
         condlist = [propensity <= category_cdf[cat] for cat in categories]
-        category = np.select(
-            condlist, choicelist=categories, default=default_category)
-    elif method == 'array':
+        category = np.select(condlist, choicelist=categories, default=default_category)
+    elif method == "array":
         if default_category is not None:
-            raise ValueError(
-                "`default_category` is unsupported with method='array'")
+            raise ValueError("`default_category` is unsupported with method='array'")
         category_index = (
             # TODO: Explain why this works...
-            np.asarray(propensity).reshape((-1,1))
+            np.asarray(propensity).reshape((-1, 1))
             > np.asarray(category_cdf)
         ).sum(axis=1)
         category = np.asarray(categories)[category_index]
     else:
         raise ValueError(
-            f"Unknown method: {method}. "
-            "Acceptable values are 'select' and 'array'.")
+            f"Unknown method: {method}. " "Acceptable values are 'select' and 'array'."
+        )
     return category
+
 
 def sample_categorical_from_propensity(
     propensity,
     # pandas CategoricalDtype or iterable of unique categories
     categories,
     category_cdf,
-    method='select',
+    method="select",
     default_category=None,
     ordered=None,
 ):
@@ -77,15 +77,14 @@ def sample_categorical_from_propensity(
         dtype = None
     codes = range(len(cats))
 
-    if method=='select':
+    if method == "select":
         # Need to change keys in category_cdf map from categories
         # to codes before passing into sample_from_array
         if isinstance(category_cdf, pd.DataFrame):
             cat_to_code = {cat: code for cat, code in zip(cats, codes)}
             category_cdf = category_cdf.rename(columns=cat_to_code)
         else:
-            category_cdf = {code: category_cdf[cat]
-                            for code, cat in zip(codes, cats)}
+            category_cdf = {code: category_cdf[cat] for code, cat in zip(codes, cats)}
 
     # Ensure that default category is valid for the CategoricalDtype
     if default_category is not None:
@@ -98,7 +97,8 @@ def sample_categorical_from_propensity(
         else:
             raise ValueError(
                 "`default_category` must either be an element of `categories` "
-                "or an object for which `pandas.isna` returns True.")
+                "or an object for which `pandas.isna` returns True."
+            )
 
     sampled_codes = sample_array_from_propensity(
         propensity,
@@ -111,25 +111,23 @@ def sample_categorical_from_propensity(
         default_category=default_category,
     )
     sampled_categories = pd.Categorical.from_codes(
-        sampled_codes, categories=categories, ordered=ordered,
-        dtype=dtype)
+        sampled_codes, categories=categories, ordered=ordered, dtype=dtype
+    )
     return sampled_categories
+
 
 def sample_series_from_propensity(
     propensity,
     categories,
     category_cdf,
-    method='select',
+    method="select",
     default_category=None,
     ordered=None,
     index=None,
     dtype=None,
     name=None,
 ):
-    is_categorical = (
-        ordered == True
-        or isinstance(categories, CategoricalDtype)
-    )
+    is_categorical = ordered == True or isinstance(categories, CategoricalDtype)
     if is_categorical:
         if dtype is not None:
             raise ValueError(
