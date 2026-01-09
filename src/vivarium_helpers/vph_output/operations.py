@@ -1,17 +1,19 @@
-import pandas as pd
 import collections
-from ..utils import _ensure_iterable, _ensure_columns_not_levels, list_columns
 
-VALUE_COLUMN = 'value'
-DRAW_COLUMN  = 'input_draw'
-SCENARIO_COLUMN = 'scenario'
-MEASURE_COLUMN = 'measure'
+import pandas as pd
+
+from ..utils import _ensure_columns_not_levels, _ensure_iterable, list_columns
+
+VALUE_COLUMN = "value"
+DRAW_COLUMN = "input_draw"
+SCENARIO_COLUMN = "scenario"
+MEASURE_COLUMN = "measure"
 
 INDEX_COLUMNS = [DRAW_COLUMN, SCENARIO_COLUMN]
 
+
 class VPHOperator:
-    """Class to perform operations on Vivarium Public Health data.
-    """
+    """Class to perform operations on Vivarium Public Health data."""
 
     def __init__(
         self,
@@ -19,19 +21,17 @@ class VPHOperator:
         draw_col=None,
         scenario_col=None,
         measure_col=None,
-        index_cols=None
+        index_cols=None,
     ):
         self.value_col = VALUE_COLUMN if value_col is None else value_col
         self.draw_col = DRAW_COLUMN if draw_col is None else draw_col
-        self.scenario_col = (
-            SCENARIO_COLUMN if scenario_col is None else scenario_col)
-        self.measure_col = (
-            MEASURE_COLUMN if measure_col is None else measure_col)
+        self.scenario_col = SCENARIO_COLUMN if scenario_col is None else scenario_col
+        self.measure_col = MEASURE_COLUMN if measure_col is None else measure_col
         self.index_cols = (
-            [self.draw_col, self.scenario_col] if index_cols is None
-            else index_cols)
+            [self.draw_col, self.scenario_col] if index_cols is None else index_cols
+        )
 
-    def set_index_columns(self, index_columns:list)->None:
+    def set_index_columns(self, index_columns: list) -> None:
         """
         Set INDEX_COLUMNS to a custom list of columns for the Vivarium model output.
         For example, if tables for different locations have been concatenated with
@@ -65,7 +65,9 @@ class VPHOperator:
         """
         if value_cols is None:
             value_cols = self.value_col
-        df = _ensure_columns_not_levels(df, list_columns(include, exclude, value_cols, default=[]))
+        df = _ensure_columns_not_levels(
+            df, list_columns(include, exclude, value_cols, default=[])
+        )
         value_cols = _ensure_iterable(value_cols)
         if include is None:
             exclude = _ensure_iterable(exclude, default=[])
@@ -73,7 +75,8 @@ class VPHOperator:
         elif exclude is not None:
             raise ValueError(
                 "Only one of `include` or `exclude` can be specified."
-                f" You passed {include=}, {exclude=}") # syntax requires python >=3.8
+                f" You passed {include=}, {exclude=}"
+            )  # syntax requires python >=3.8
         else:
             include = _ensure_iterable(include, df)
             index_cols = [*include, *self.index_cols]
@@ -81,14 +84,14 @@ class VPHOperator:
 
     def marginalize(
         self,
-        df:pd.DataFrame,
+        df: pd.DataFrame,
         marginalized_cols,
         value_cols=None,
         reset_index=True,
-        func='sum',
-        args=(), # Positional args to pass to func in DataFrameGroupBy.agg
-        **kwargs, # Keywords to pass to DataFrameGroupBy.agg
-    )->pd.DataFrame:
+        func="sum",
+        args=(),  # Positional args to pass to func in DataFrameGroupBy.agg
+        **kwargs,  # Keywords to pass to DataFrameGroupBy.agg
+    ) -> pd.DataFrame:
         """Sum (or otherwise aggregate) the values of a dataframe over
         the specified columns to marginalize out.
 
@@ -138,23 +141,27 @@ class VPHOperator:
         df = _ensure_columns_not_levels(df, marginalized_cols)
         groupby_cols = df.columns.difference(
             # must convert Index to list for groupby to work properly
-            [*marginalized_cols, *value_cols]).to_list()
+            [*marginalized_cols, *value_cols]
+        ).to_list()
         aggregated_data = df.groupby(
             # observed=True needed for Categorical data
-            groupby_cols, as_index=(not reset_index), observed=True
+            groupby_cols,
+            as_index=(not reset_index),
+            observed=True,
         )[value_cols].agg(func, *args, **kwargs)
         return aggregated_data
 
     def stratify(
-        self, df: pd.DataFrame,
+        self,
+        df: pd.DataFrame,
         strata,
         value_cols=None,
         index_cols=None,
         reset_index=True,
-        func='sum',
-        args=(), # Positional args to pass to func in DataFrameGroupBy.agg
-        **kwargs, # Keywords to pass to DataFrameGroupBy.agg
-    )->pd.DataFrame:
+        func="sum",
+        args=(),  # Positional args to pass to func in DataFrameGroupBy.agg
+        **kwargs,  # Keywords to pass to DataFrameGroupBy.agg
+    ) -> pd.DataFrame:
         """Sum (or otherwise aggregate) the values of the dataframe so
         that the reult is stratified by the specified strata.
 
@@ -206,9 +213,9 @@ class VPHOperator:
         strata = _ensure_iterable(strata)
         value_cols = _ensure_iterable(value_cols)
         groupby_cols = [*strata, *index_cols]
-        aggregated_data = df.groupby(
-            groupby_cols, as_index=(not reset_index), observed=True
-        )[value_cols].agg(func, *args, **kwargs)
+        aggregated_data = df.groupby(groupby_cols, as_index=(not reset_index), observed=True)[
+            value_cols
+        ].agg(func, *args, **kwargs)
         return aggregated_data
 
     def aggregate_categories(
@@ -219,9 +226,9 @@ class VPHOperator:
         append=False,
         value_cols=None,
         reset_index=True,
-        func='sum',
-        args=(), # Positional args to pass to func in DataFrameGroupBy.agg
-        **kwargs, # Keywords to pass to DataFrameGroupBy.agg
+        func="sum",
+        args=(),  # Positional args to pass to func in DataFrameGroupBy.agg
+        **kwargs,  # Keywords to pass to DataFrameGroupBy.agg
     ):
         """Aggregates (via sum by default) the values corresponding to the specified categories in
         a specified column of a dataframe into "supercategories" for that column.
@@ -275,8 +282,7 @@ class VPHOperator:
         # Reverse the dictionary, unpacking the lists
         category_to_supercategory = {
             category: supercategory
-            for supercategory, categories
-                in supercategory_to_categories.items()
+            for supercategory, categories in supercategory_to_categories.items()
             for category in _ensure_iterable(categories)
         }
         # Margnializing over nothing is equivalent to stratifying by
@@ -284,10 +290,8 @@ class VPHOperator:
         # category to its supercategory, this will collapse all rows
         # corresponding to each supercategory within the remaining
         # strata.
-        aggregated_df = (
-            df.replace({category_col: category_to_supercategory})
-            .pipe(self.marginalize, [], value_cols, reset_index,
-                func, args, **kwargs)
+        aggregated_df = df.replace({category_col: category_to_supercategory}).pipe(
+            self.marginalize, [], value_cols, reset_index, func, args, **kwargs
         )
         if append:
             return pd.concat([df, aggregated_df], ignore_index=True)
@@ -308,7 +312,7 @@ class VPHOperator:
         dropna=False,
         record_inputs=None,
         reset_index=True,
-    )-> pd.DataFrame:
+    ) -> pd.DataFrame:
         """
         Compute a ratio or rate by dividing the numerator by the denominator.
 
@@ -406,8 +410,8 @@ class VPHOperator:
             # Really I think the 'measure' column should always have a
             # unique value, but currently that is not the case for
             # transition counts...
-            numerator_measure = '|'.join(numerator[measure_col].unique())
-            denominator_measure = '|'.join(denominator[measure_col].unique())
+            numerator_measure = "|".join(numerator[measure_col].unique())
+            denominator_measure = "|".join(denominator[measure_col].unique())
 
         # Ensure strata is an iterable of column names so it can be
         # concatenated with broadcast columns
@@ -418,13 +422,15 @@ class VPHOperator:
             [*strata, *numerator_broadcast],
             value_cols=value_col,
             index_cols=index_cols,
-            reset_index=False)
+            reset_index=False,
+        )
         denominator = self.stratify(
             denominator,
             [*strata, *denominator_broadcast],
             value_cols=value_col,
             index_cols=index_cols,
-            reset_index=False)
+            reset_index=False,
+        )
 
         # Compute the ratio
         ratio = (numerator / denominator) * multiplier
@@ -436,9 +442,9 @@ class VPHOperator:
             ratio = ratio.dropna()
 
         if record_inputs:
-            ratio[f'numerator_{measure_col}'] = numerator_measure
-            ratio[f'denominator_{measure_col}'] = denominator_measure
-            ratio['multiplier'] = multiplier
+            ratio[f"numerator_{measure_col}"] = numerator_measure
+            ratio[f"denominator_{measure_col}"] = denominator_measure
+            ratio["multiplier"] = multiplier
 
         if reset_index:
             # Note: inplace=True is deprecated for .reset_index because
@@ -453,11 +459,11 @@ class VPHOperator:
     # with a 100% coverage scenario
     def difference(
         self,
-        measure:pd.DataFrame,
-        identifier_col:str,
+        measure: pd.DataFrame,
+        identifier_col: str,
         minuend_id=None,
         subtrahend_id=None,
-    )->pd.DataFrame:
+    ) -> pd.DataFrame:
         """
         Returns the difference of a measure stored in the measure DataFrame, where the
         rows for the minuend (that which is diminished) and subtrahend (that which is subtracted)
@@ -475,12 +481,16 @@ class VPHOperator:
             # Use all values not equal to subtrahend_id for minuend (subtrahend will be broadcast over minuend)
             minuend = measure[measure[identifier_col] != subtrahend_id]
         else:
-            raise ValueError("At least one of `minuend_id` and `subtrahend_id` must be specified")
+            raise ValueError(
+                "At least one of `minuend_id` and `subtrahend_id` must be specified"
+            )
 
         # Columns to match when subtracting subtrahend from minuend
         # Oh, I just noticed that I could use the Index.difference() method here, which I was unaware of before...
-        index_columns = sorted(set(measure.columns) - set([identifier_col, VALUE_COLUMN]),
-                               key=measure.columns.get_loc)
+        index_columns = sorted(
+            set(measure.columns) - set([identifier_col, VALUE_COLUMN]),
+            key=measure.columns.get_loc,
+        )
 
         minuend = minuend.set_index(index_columns)
         subtrahend = subtrahend.set_index(index_columns)
@@ -499,8 +509,12 @@ class VPHOperator:
         difference = difference.reset_index()
 
         # Add a column to specify what was subtracted from (the minuend) or what was subtracted (the subtrahend)
-        colname, value = ('subtracted_from', minuend_id) if minuend_id is not None else ('subtracted_value', subtrahend_id)
-        difference.insert(difference.columns.get_loc(identifier_col)+1, colname, value)
+        colname, value = (
+            ("subtracted_from", minuend_id)
+            if minuend_id is not None
+            else ("subtracted_value", subtrahend_id)
+        )
+        difference.insert(difference.columns.get_loc(identifier_col) + 1, colname, value)
 
         return difference
 
@@ -532,9 +546,11 @@ class VPHOperator:
         if scenario_col is None:
             scenario_col = self.scenario_col
         # Subtract intervention from baseline
-        averted = self.difference(measure, identifier_col=scenario_col, minuend_id=baseline_scenario)
+        averted = self.difference(
+            measure, identifier_col=scenario_col, minuend_id=baseline_scenario
+        )
         # Insert a column after the scenario column to record what the baseline scenario was
-    #     averted.insert(averted.columns.get_loc(scenario_col)+1, 'relative_to', baseline_scenario)
+        #     averted.insert(averted.columns.get_loc(scenario_col)+1, 'relative_to', baseline_scenario)
         return averted
 
     def describe(self, df, **describe_kwargs):
@@ -542,8 +558,8 @@ class VPHOperator:
         This is a wrapper function for DataFrameGroupBy.describe(),
         with `df` grouped by everything except draw and value.
         """
-        if 'percentiles' not in describe_kwargs:
-            describe_kwargs['percentiles'] = [.025, .975]
+        if "percentiles" not in describe_kwargs:
+            describe_kwargs["percentiles"] = [0.025, 0.975]
         excluded_cols = [self.draw_col, self.value_col]
         df = _ensure_columns_not_levels(df, excluded_cols)
         groupby_cols = df.columns.difference(excluded_cols).to_list()
@@ -564,6 +580,7 @@ class VPHOperator:
         df1 = self.value(df1)
         df2 = self.value(df2).reindex(df1.index)
         return df1.compare(df2, **kwargs)
+
 
 # NOTE:
 # An alternative strategy to defining __getattr__ as below
