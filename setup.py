@@ -42,9 +42,7 @@ if __name__ == "__main__":
 
     install_requirements = [
         "vivarium_dependencies[numpy,pandas,db_queries,loguru,scipy]",
-        # FIXME: PIN CORRECTLY WHEN DONE DEBUGGING
-        "vivarium_build_utils @ git+https://github.com/ihmeuw/vivarium_helpers.git@sbachmei/split-mypy-from-formatting"
-        # "vivarium_build_utils>=2.1.1,<3.0.0",
+        "vivarium_build_utils>=2.1.1,<3.0.0",
     ]
     test_requirements = ["vivarium_dependencies[pytest]"]
     lint_requirements = ["vivarium_dependencies[lint]"]
