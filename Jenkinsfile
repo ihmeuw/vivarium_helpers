@@ -33,5 +33,4 @@ reusable_pipeline(
     // for subsequent scheduled builds to run.
     scheduled_branches: ["main"], 
     run_mypy: false,
-    run_formatting: false,
 )
