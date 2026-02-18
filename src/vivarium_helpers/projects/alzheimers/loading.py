@@ -71,6 +71,25 @@ def list_paths(directory):
         paths = [entry.path for entry in entries]
     return paths
 
+def list_batch_run_directories(model_run_dir):
+    """List directories of all batch runs for a given model run."""
+    if 'model12.2' in str(model_run_dir):
+        # Model 12.2 had two extra levels of subdirectories for each
+        # batch run.  We need to loop through those to get the run
+        # directories.
+        batch_run_dirs = []
+        for batch_dir in list_paths(model_run_dir): # batch{n}
+            model_spec_dir = Path(batch_dir) / 'model_spec'
+            run_dirs = list_paths(model_spec_dir) # timestamp directory
+            assert len(run_dirs) == 1, \
+                f"wrong number of run directories: {run_dirs}"
+            batch_run_dirs.append(str(model_spec_dir / run_dirs[0]))
+    else:
+        # For other models (8.4, 8.7), timestamp directories are
+        # directly under the model run directory
+        batch_run_dirs = list_paths(model_run_dir)
+    return batch_run_dirs
+
 def get_results_directory(run_directory):
     """Get the path to the results subdirectory of a model run directory."""
     run_directory = Path(run_directory)
@@ -293,15 +312,22 @@ def load_sim_output(
     dfs = []
     for location, directory in results_dict.items():
 
-        parquet_file_path = Path(directory) / f'{measure}.parquet'
-        # Read the Parquet file's schema to get column names and data types
-        parquet_schema = pq.read_schema(parquet_file_path)
+        # NOTE: New Vivarium version stores each measure in a folder
+        # instead of a single .parquet file
+        parquet_file_path = Path(directory) / measure #f'{measure}.parquet'
+        # The ParquetDataset object has a .schema attribute we can use
+        # to get its column names and data types
+        parquet_dataset = pa.parquet.ParquetDataset(parquet_file_path)
+        # # NOTE: This code no longer works with datasets stored in
+        # # directories instead of single parquet files:
+        # # Read the Parquet file's schema to get column names and data types
+        # parquet_schema = pq.read_schema(parquet_file_path)
 
         if (
             all_locations_together
             and location_to_artifact_path is not None
         ):
-            if 'artifact_path' in parquet_schema.names:
+            if 'artifact_path' in parquet_dataset.schema.names:
                 # Filter to locations in list
                 location_filter = (
                     'artifact_path',
@@ -321,12 +347,13 @@ def load_sim_output(
             # Read all columns as dictionaries except those containing
             # floating point values
             kwargs['read_dictionary'] = [
-                col.name for col in parquet_schema
+                col.name for col in parquet_dataset.schema
                 if not pa.types.is_floating(col.type)]
 
         print(kwargs.get('filters'))
         # Read the parquet file
         df = pd.read_parquet(parquet_file_path, **kwargs)
+        # df = parquet_dataset.read(**kwargs).to_pandas()
         print_memory_usage(df, 'after read_parquet')
 
         if drop_superfluous_cols:
