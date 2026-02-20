@@ -449,20 +449,52 @@ class AlzheimersResultsProcessor:
         # rates?
         susceptible_treatments = mslt_results.query(
             "measure=='Medication Initiation'")
-        # Filter to transitions corresponding to starting treatment and
-        # to age groups where treatment is nonzero
-        filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
-            'transition_count_treatment']
+
+        # Check measure column to determine whether we're working with
+        # treatment transition counts or treatment duration
+        treatments_measure = treatments['measure'].unique()
+        assert len(treatments_measure) == 1, \
+            f"Expected only one unique measure in treatments dataframe: {treatments_measure}"
+        treatments_measure = treatments_measure[0]
+
+        # Depending on which dataframe was passed, set the correct
+        # filters, and define an appropriate function to assign
+        # 'Medication Completion' vs. 'Medication Discontinuation' based
+        # on the sub_entity column
+        if treatments_measure == 'transition_count':
+            # Treatments dataframe is treatment transition counts
+            # Filter to transitions corresponding to starting treatment and
+            # to age groups where treatment is nonzero
+            filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
+                'transition_count_treatment']
+            def assign_completion_vs_discontinuation(df):
+                df = df.assign(measure=df['sub_entity'].replace(
+                    {'waiting_for_treatment_to_full_effect_long':
+                        'Medication Completion',
+                     'waiting_for_treatment_to_full_effect_short':
+                        'Medication Discontinuation'}))
+                return df
+        elif treatments_measure == 'treatment_duration_count':
+            # Treatments dataframe is treatment duration
+            filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
+                'treatment_duration']
+            def assign_completion_vs_discontinuation(df):
+                df = (df.pipe(self.ops.aggregate_categories, 'sub_entity',
+                            {'Medication Completion': 9,
+                             'Medication Discontinuation': range(1, 9)})
+                    .drop(columns='measure')
+                    .rename(columns={'sub_entity': 'measure'})
+                )
+                return df
+        else:
+            raise ValueError(
+                f"Unexpected measure in treatments dataframe: {treatments_measure}")
+
         treatments = (
             treatments
             .query(filter_query)
-            .assign(measure=lambda df: df['sub_entity'].replace(
-                {'waiting_for_treatment_to_full_effect_long':
-                    'Medication Completion',
-                 'waiting_for_treatment_to_full_effect_short':
-                    'Medication Discontinuation'}),
-                    disease_stage='Preclinical AD'
-                    )
+            .pipe(assign_completion_vs_discontinuation)
+            .assign(disease_stage='Preclinical AD')
             .pipe(self.ops.aggregate_categories, 'measure',
                   {'Medication Initiation':
                     ['Medication Completion', 'Medication Discontinuation']},
