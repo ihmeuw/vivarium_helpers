@@ -34,7 +34,8 @@ class AlzheimersResultsProcessor:
             else loading.PROJECT_DIRECTORY)
 
         if self.run_dirs is not None and self.batch_run_dirs is not None:
-            raise ValueError("Must specify exactly one of run_dirs or batch_run_dirs")
+            raise ValueError(
+                "Must specify exactly one of run_dirs or batch_run_dirs")
 
         if self.batch_run_dirs is not None:
             # Each batch contains different draws, so concatenate them together
@@ -98,16 +99,23 @@ class AlzheimersResultsProcessor:
         # NOTE: If age_group column is Categorical, calling .unique() also
         # returns a Categorical, which must be explicitly converted to a
         # list in order for the _ensure_iterable function to work
-        # twenty_five_plus_map = {'25_plus': self.age_map['age_group'].to_list()}
-        sixty_plus_map = {
-            '60_plus': [a for a in self.age_map['age_group'] if a >= '60_to_64']
+        # twenty_five_plus_map = {
+        #     '25_plus': self.age_map['age_group'].to_list()}
+
+        # Aggregate all age groups above the minimum testing age
+        min_testing_age_group = min(loading.TESTING_ELIGIBLE_AGE_GROUPS)
+        min_testing_age = int(min_testing_age_group.split('_')[0])
+        older_ages_map = {
+            f'{min_testing_age}_plus': [
+                a for a in self.age_map['age_group']
+                if a >= min_testing_age_group]
             }
         both_sexes_map = {'Both': ['Male', 'Female']}
         df = (
             df
             # .pipe(self.ops.aggregate_categories, 'age_group', twenty_five_plus_map,
             #       append=True)
-            .pipe(self.ops.aggregate_categories, 'age_group', sixty_plus_map,
+            .pipe(self.ops.aggregate_categories, 'age_group', older_ages_map,
                   append=True)
             .pipe(self.ops.aggregate_categories, 'sex', both_sexes_map,
                   append=True)
@@ -441,16 +449,13 @@ class AlzheimersResultsProcessor:
         # rates?
         susceptible_treatments = mslt_results.query(
             "measure=='Medication Initiation'")
-        # Filter to transitions corresponding to starting treatment
-        start_treatment = [
-            'waiting_for_treatment_to_full_effect_long',
-            'waiting_for_treatment_to_full_effect_short']
+        # Filter to transitions corresponding to starting treatment and
+        # to age groups where treatment is nonzero
+        filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
+            'transition_count_treatment']
         treatments = (
             treatments
-            .query(
-                "sub_entity in @start_treatment"
-                " and age_group in @loading.TREATMENT_ELIGIBLE_AGE_GROUPS"
-            )
+            .query(filter_query)
             .assign(measure=lambda df: df['sub_entity'].replace(
                 {'waiting_for_treatment_to_full_effect_long':
                     'Medication Completion',
