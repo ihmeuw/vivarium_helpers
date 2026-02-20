@@ -28,18 +28,19 @@ LOCATIONS = [
 ]
 
 # TODO: Maybe move these somewhere that makes more sense
+# NOTE: Prior to model 12, these included age group '60_to_64' as well
 TESTING_ELIGIBLE_AGE_GROUPS = [
-    '60_to_64', '65_to_69', '70_to_74', '75_to_79']
+    '65_to_69', '70_to_74', '75_to_79']
 TREATMENT_ELIGIBLE_AGE_GROUPS = [
-    '60_to_64', '65_to_69', '70_to_74', '75_to_79', '80_to_84']
+    '65_to_69', '70_to_74', '75_to_79', '80_to_84']
 
 # Parquet filters in disjunctive normal form to use when loading data
 # for final results, to save memory and time
 FINAL_RESULTS_FILTERS = {
     # Filter out 'other_causes' deaths since we don't need it
-    'deaths': [('entity', '=', 'alzheimers_disease_state')],
+    'deaths': [('entity', '==', 'alzheimers_disease_state')],
     # Filter out 'other_causes' YLLs
-    'ylls': [('entity', '=', 'alzheimers_disease_state')],
+    'ylls': [('entity', '==', 'alzheimers_disease_state')],
     # Filter out 'treatment' and 'all_causes' YLDs
     'ylds': [('entity', '==', 'alzheimers_disease_and_other_dementias')],
     # No filters for AD prevalence
@@ -58,12 +59,49 @@ FINAL_RESULTS_FILTERS = {
     # Filter to the transitions relevant to the measures we care about
     'transition_count_treatment': [
         ('sub_entity', 'in',
-         ['waiting_for_treatment_to_full_effect_long',
-          'waiting_for_treatment_to_full_effect_short']
+         [
+             # Old treatment state names, pre-2026
+             'waiting_for_treatment_to_full_effect_long',
+             'waiting_for_treatment_to_full_effect_short',
+             # New treatment state name after Jan/Feb 2026 updates
+             'waiting_for_treatment_to_treatment_effect',
+          ]
         ),
         ('age_group', 'in', TREATMENT_ELIGIBLE_AGE_GROUPS),
     ]
 }
+
+def get_query_strings_from_parquet_filters(parquet_filters):
+    """Generate pandas DataFrame query strings from the filter
+    specifications used for loading parquet files. These will be used to
+    filter the dataframes when processing in case they were loaded
+    without filtering.
+    Args:
+        parquet_filters (dict): A dictionary where keys are file names
+            and values are lists of filter specifications. Each filter
+            specification is a tuple of the form (column_name, operator,
+            value).
+    Returns:
+        dict: A dictionary where keys are file names and values are
+            query strings that can be used with pandas DataFrame.query()
+    """
+    queries = {}
+    for filename, filters in parquet_filters.items():
+        # print(filters)
+        if filters is None:
+            query_string = None
+        else:
+            # Must explicitly convert tuple elements to strings before
+            # joining because some are lists
+            query_substrings = [' '.join(str(x) for x in f) for f in filters]
+            query_string = ' and '.join(query_substrings)
+        queries[filename] = query_string
+
+    return queries
+
+# Generate pandas query strings equivalent to the parquet filters above
+FINAL_RESULTS_FILTER_QUERIES = get_query_strings_from_parquet_filters(
+    FINAL_RESULTS_FILTERS)
 
 def list_paths(directory):
     """List paths of all entries in a directory."""
