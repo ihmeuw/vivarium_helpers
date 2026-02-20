@@ -78,12 +78,12 @@ def _ensure_iterable(colnames, default=None):
     """
 
     def method1(colnames):
-        """Method 1 (doesn't depend on df): Assume that if colnames has a type that is in a whitelist of
+        """Method 1 (doesn't depend on df): Assume that if colnames has a type that is in a list of
         allowed iterable types, then it is an iterable of column names, and otherwise it must be a single
         column name.
         """
-        # TODO: Maybe add pd.Categorical to the whitelist?
-        if not isinstance(colnames, (list, pd.Index)):
+        # TODO: Maybe add pd.Categorical to the allow list?
+        if not isinstance(colnames, (list, pd.Index, range, zip)):
             colnames = [colnames]
         return colnames
 
