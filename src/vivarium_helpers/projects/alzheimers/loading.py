@@ -68,7 +68,13 @@ FINAL_RESULTS_FILTERS = {
           ]
         ),
         ('age_group', 'in', TREATMENT_ELIGIBLE_AGE_GROUPS),
-    ]
+    ],
+    # Filter out 0 treatment months, and to testing-eligible age groups
+    'treatment_duration': [
+        ('sub_entity', '!=', 0),
+        ('age_group', 'in', TESTING_ELIGIBLE_AGE_GROUPS),
+        # ('scenario', '==', 'bbbm_testing_and_treatment'),
+    ],
 }
 
 def get_query_strings_from_parquet_filters(parquet_filters):
