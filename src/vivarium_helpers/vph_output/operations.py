@@ -83,6 +83,21 @@ class VPHOperator:
         # Return a new VPHOperator object with specified parameters
         return self.__class__(**kwargs)
 
+    def pivot_draws(self, df):
+        """Pivot draw column from long to wide format, so that each draw
+        gets its own column, renamed 'draw_{n}'.
+        """
+        index_cols = df.columns.difference(
+            [self.value_col, self.draw_col]).to_list()
+        pivoted = (
+            df
+            .pivot(
+                columns=self.draw_col, index=index_cols, values=self.value_col)
+            .rename(columns=lambda n: f"draw_{n}")
+            .rename_axis(columns=None)
+        )
+        return pivoted
+
     # TODO: Either add an index_cols parameter here, or figure out if
     # there's a way to mimic the same behavior by allowing the user
     # to pass both `include` and `exclude`
@@ -726,20 +741,26 @@ class VPHOperator:
                                          **kwargs)
         return described
 
-    def assert_values_equal(self, df1, df2, **kwargs):
+    def assert_values_equal(
+            self, df1, df2,
+            include=None, exclude=None, value_cols=None, **kwargs,
+        ):
         """Test whether the value columns of df1 and df2 are equal, using all other columns as the index,
         using the `pd.testing.assert_frame_equal` function.
         """
-        df1 = self.value(df1)
-        df2 = self.value(df2).reindex(df1.index)
+        df1 = self.value(df1, include, exclude, value_cols)
+        df2 = self.value(df2, include, exclude, value_cols).reindex(df1.index)
         pd.testing.assert_frame_equal(df1, df2, **kwargs)
 
-    def compare_values(self, df1, df2, **kwargs):
+    def compare_values(
+            self, df1, df2,
+            include=None, exclude=None, value_cols=None, **kwargs
+        ):
         """Compare the value columns of df1 and df2, using all other columns as the index,
         using the `pd.DataFrame.compare` method.
         """
-        df1 = self.value(df1)
-        df2 = self.value(df2).reindex(df1.index)
+        df1 = self.value(df1, include, exclude, value_cols)
+        df2 = self.value(df2, include, exclude, value_cols).reindex(df1.index)
         return df1.compare(df2, **kwargs)
 
 # NOTE:
