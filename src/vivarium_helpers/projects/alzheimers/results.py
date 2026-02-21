@@ -1,5 +1,6 @@
 from ...utils import (AttributeMapping, constant_categorical, current_time,
-                      convert_to_categorical, print_memory_usage)
+                      convert_to_categorical, print_memory_usage,
+                      mean_lower_upper)
 from ...vph_output.measures import VPHResults
 from ...vph_output.operations import VPHOperator
 from ...vph_output.loading import load_draws_from_keyspace_files, load_keyspace
@@ -527,6 +528,7 @@ class AlzheimersResultsProcessor:
                 metric='Number',
                 disease_stage='Preclinical AD',)
             .pipe(convert_to_categorical)
+            .astype({'value': 'int'})
         )
         return treatment_months
 
@@ -629,6 +631,7 @@ class AlzheimersResultsProcessor:
             'measure': 'Measure',
             'metric': 'Metric',
             disease_stage_column: 'Disease Stage',
+            'months_of_treatment': 'Months of Treatment',
             'input_draw': 'Draw',
             'value': 'Value',
             'mean': 'Mean',
@@ -640,6 +643,99 @@ class AlzheimersResultsProcessor:
             column_name_map = {v: k for k, v in column_name_map.items()}
         return column_name_map
 
+    def scale_up_and_append_rates_and_aggregates(self, df, include_rate=True):
+        """Do final calculations on the dataframe, including scaling to
+        real-world population, appending aggregate categories, and
+        calculating rates. Thes steps are common to processing each
+        measure and should be performed before summarizing and
+        beautifying the data for output.
+        """
+        df = (
+            df
+            # Filter out burn-in years before 2025
+            .query('event_year >= 2025')
+            # Scale to real-world values
+            .pipe(self.scale_to_real_world)
+            # Append rows for "all ages" and "both sexes"
+            .pipe(self.append_aggregate_categories)
+            # Calculate and append rates
+            .pipe(lambda df: self.calculate_rate(df, append=True)
+                  if include_rate else df)
+            # Compress data if possible
+            .pipe(convert_to_categorical)
+        )
+        return df
+
+    @Timer(name='SummarizingTimer', initial_text=True)
+    def summarize(self, df, include_draws=False):
+        """Summarize the dataframe by calculating mean and 95%
+        uncertainty intervals across draws, and optionally include the
+        individual draw values in the output.
+        """
+        # # NOTE: For some reason, this version is about 5x slower:
+        # df = self.ops.pivot_draws(df)
+        # summarized = mean_lower_upper(df, axis=1)
+        summarized = self.ops.summarize_draws(df)
+        if include_draws:
+            # summarized = summarized.join(df)
+            summarized = summarized.join(self.ops.pivot_draws(df))
+        return summarized.reset_index()
+
+    def beautify(self, df, disease_stage_column='disease_stage'):
+        """Rename columns, replace scenario and disease stage names with
+        more user-friendly versions, filter to desired columns, and put
+        them in the right order.
+        """
+        column_name_map = self.get_column_name_map(disease_stage_column)
+        disease_stage_name_map = {
+            'alzheimers_blood_based_biomarker_state': 'Preclinical AD',
+            'alzheimers_mild_cognitive_impairment_state': 'MCI due to AD',
+            'alzheimers_disease_state' : 'AD Dementia'
+        }
+        scenario_name_map = {
+            'baseline': 'Reference',
+            'bbbm_testing': 'BBBM Testing Only',
+            'bbbm_testing_and_treatment' : 'BBBM Testing and Treatment',
+        }
+        column_order = [
+            'Year', 'Location', 'Age', 'Sex' , 'Disease Stage' , 'Scenario',
+            'Months of Treatment', # Only included in treatment duration
+            'Measure', 'Metric', 'Mean', '95% UI Lower', '95% UI Upper',
+        ] + [c for c in df.columns if c.startswith('draw_')]
+        df = (
+            df
+            .rename(columns=column_name_map)
+            .replace(
+                {'Disease Stage': disease_stage_name_map,
+                'Scenario': scenario_name_map})
+            .pipe(lambda df: df[[c for c in column_order if c in df]])
+        )
+        return df
+
+    def do_final_processing(
+            self,
+            df,
+            disease_stage_column='disease_stage',
+            include_rate=True,
+            include_draws=False,
+        ):
+        """Perform final steps of processing to get from raw simulation
+        output to final summarized and beautified data ready for output.
+        This includes scaling to real-world population, appending
+        aggregate categories, calculating rates, summarizing across
+        draws, and beautifying columns.
+        """
+        df = (
+            df
+            .pipe(lambda df: current_time() or df)
+            .pipe(self.scale_up_and_append_rates_and_aggregates,
+                  include_rate)
+            .pipe(self.summarize, include_draws)
+            .pipe(self.beautify, disease_stage_column)
+            .pipe(lambda df: current_time() or df)
+        )
+        return df
+
     @Timer(name='SummarizingTimer', initial_text=True)
     def summarize_and_beautify(
             self,
@@ -647,6 +743,8 @@ class AlzheimersResultsProcessor:
             # By default, assume disease stage is stored in
             # disease_stage column, but allow passing a different column
             disease_stage_column='disease_stage',
+            include_rate=True,
+            include_draws=False,
         ):
         """Append rates, scale to real-world, summarize, rename columns,
         filter to desired columns, and put them in the right order.
@@ -678,7 +776,8 @@ class AlzheimersResultsProcessor:
             # Append rows for "all ages" and "both sexes"
             .pipe(self.append_aggregate_categories)
             # Calculate and append rates
-            .pipe(self.calculate_rate, append=True)
+            .pipe(lambda df: self.calculate_rate(df, append=True)
+                  if include_rate else df)
             # Compress data if possible
             .pipe(convert_to_categorical)
             .pipe(lambda df: current_time() or df)
