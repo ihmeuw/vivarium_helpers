@@ -53,7 +53,9 @@ FINAL_RESULTS_FILTERS = {
     'counts_bbbm_tests': [
         ('bbbm_test_results', '!=', 'not_tested'),
         ('age_group', 'in', TESTING_ELIGIBLE_AGE_GROUPS),
-        ],
+        # Filter out baseline scenario since it's all 0s
+        ('scenario', '!=', 'baseline'),
+    ],
     # Filter out 'not_tested' and 'bbbm' among those eligible for CSF/PET
     'counts_baseline_tests_among_eligible': [('testing_state', 'in', ['csf', 'pet'])],
     # Filter to the transitions relevant to the measures we care about
@@ -64,16 +66,23 @@ FINAL_RESULTS_FILTERS = {
              'waiting_for_treatment_to_full_effect_long',
              'waiting_for_treatment_to_full_effect_short',
              # New treatment state name after Jan/Feb 2026 updates
+             # NOTE:
+             # We're not actually using this dataframe to count
+             # treatments anymore, but adding this state prevents errors
+             # from loading an empty dataframe
              'waiting_for_treatment_to_treatment_effect',
           ]
         ),
         ('age_group', 'in', TREATMENT_ELIGIBLE_AGE_GROUPS),
+        # Filter to treatment scenario (others are all 0s)
+        ('scenario', '==', 'bbbm_testing_and_treatment'),
     ],
     # Filter out 0 treatment months, and to testing-eligible age groups
     'treatment_duration': [
         ('sub_entity', '!=', 0),
         ('age_group', 'in', TESTING_ELIGIBLE_AGE_GROUPS),
-        # ('scenario', '==', 'bbbm_testing_and_treatment'),
+        # Filter to treatment scenario (others are all 0s)
+        ('scenario', '==', 'bbbm_testing_and_treatment'),
     ],
 }
 
@@ -97,10 +106,17 @@ def get_query_strings_from_parquet_filters(parquet_filters):
         if filters is None:
             query_string = None
         else:
-            # Must explicitly convert tuple elements to strings before
-            # joining because some are lists
-            query_substrings = [' '.join(str(x) for x in f) for f in filters]
-            query_string = ' and '.join(query_substrings)
+            # Must explicitly convert tuple elements to strings using
+            # repr before joining because lists and numbers need to be
+            # converted to strings, and strings need repr to keep their
+            # quotes in the final query string. filters = list of tuples
+            # of the form (column, op, value), where value is genrally a
+            # string, number, or list.
+            query_substrings = [
+                ' '.join((column, op, repr(value)))
+                for column, op, value in filters]
+            # Parenthesize each subquery before joining with 'and'
+            query_string = ' and '.join(f'({s})' for s in query_substrings)
         queries[filename] = query_string
 
     return queries
