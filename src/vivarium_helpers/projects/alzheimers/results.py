@@ -372,12 +372,12 @@ class AlzheimersResultsProcessor:
         """Concatenate all BBBM tests with positive BBBM tests and
         preprocess for final outputs.
         """
-        # Filter out counts of 'not_tested' (all 0s)
-        # Also filter to age groups where tests are nonzero
-        bbbm_tests = bbbm_tests.query(
-            "bbbm_test_results != 'not_tested'"
-            " and age_group in @loading.TESTING_ELIGIBLE_AGE_GROUPS"
-        )
+        # Filter out counts of 'not_tested' (all 0s). Also filter to age
+        # groups where tests are nonzero, and filter out baseline
+        # scenario since it's all 0s
+        filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
+            'counts_bbbm_tests']
+        bbbm_tests = bbbm_tests.query(filter_query)
         # Add up positive and negative tests to get total BBBM tests
         total_bbbm_tests = (
             self.ops.marginalize(bbbm_tests, 'bbbm_test_results')
@@ -444,12 +444,15 @@ class AlzheimersResultsProcessor:
         MSLT results.
         """
         # Filter MSLT results to treatments among susceptible population
+        # Also filter to treatment scenario since testing scenario is
+        # all 0s.
         # TODO: Fill in age group 80-84 with 0s to match age groups for
         # sim results, and so that we don't get NaNs when computing
         # rates?
         susceptible_treatments = mslt_results.query(
-            "measure=='Medication Initiation'")
-
+            "measure=='Medication Initiation'"
+            " and scenario == 'BBBM Testing and Treatment'"
+        )
         # Check measure column to determine whether we're working with
         # treatment transition counts or treatment duration
         treatments_measure = treatments['measure'].unique()
@@ -457,16 +460,14 @@ class AlzheimersResultsProcessor:
             f"Expected only one unique measure in treatments dataframe: {treatments_measure}"
         treatments_measure = treatments_measure[0]
 
-        # Depending on which dataframe was passed, set the correct
-        # filters, and define an appropriate function to assign
+        # Depending on which dataframe was passed (treatments transition
+        # counts, or treatment duration), record the filename to get the
+        # correct filters, and define an appropriate function to assign
         # 'Medication Completion' vs. 'Medication Discontinuation' based
         # on the sub_entity column
         if treatments_measure == 'transition_count':
             # Treatments dataframe is treatment transition counts
-            # Filter to transitions corresponding to starting treatment and
-            # to age groups where treatment is nonzero
-            filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
-                'transition_count_treatment']
+            treatments_filename = 'transition_count_treatment'
             def assign_completion_vs_discontinuation(df):
                 df = df.assign(measure=df['sub_entity'].replace(
                     {'waiting_for_treatment_to_full_effect_long':
@@ -476,8 +477,7 @@ class AlzheimersResultsProcessor:
                 return df
         elif treatments_measure == 'treatment_duration_count':
             # Treatments dataframe is treatment duration
-            filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
-                'treatment_duration']
+            treatments_filename = 'treatment_duration'
             def assign_completion_vs_discontinuation(df):
                 df = (df.pipe(self.ops.aggregate_categories, 'sub_entity',
                             {'Medication Completion': 9,
@@ -489,6 +489,12 @@ class AlzheimersResultsProcessor:
         else:
             raise ValueError(
                 f"Unexpected measure in treatments dataframe: {treatments_measure}")
+
+        # Filter to transitions corresponding to starting treatment or
+        # to nonzero months of treatment, and to age groups where
+        # treatment is nonzero
+        filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
+            treatments_filename]
 
         treatments = (
             treatments
@@ -504,6 +510,25 @@ class AlzheimersResultsProcessor:
             .pipe(convert_to_categorical)
         )
         return treatments
+
+    def process_months_of_treatment(self, treatment_months):
+        """Preprocess months of treatment data."""
+        # Filter to age groups where treatment is nonzero, and to
+        # treatment scenario since testing scenario is all 0s
+        filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
+            'treatment_duration']
+        treatment_months = (
+            treatment_months
+            .query(filter_query)
+            .drop(columns=['artifact_path', 'entity', 'entity_type'])
+            .rename(columns={'sub_entity': 'months_of_treatment'})
+            .assign(
+                measure='Treatments by number of doses completed',
+                metric='Number',
+                disease_stage='Preclinical AD',)
+            .pipe(convert_to_categorical)
+        )
+        return treatment_months
 
     def scale_to_simulation(self, measure):
         """Multiply the values in the `measure` dataframe by the values in
