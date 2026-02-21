@@ -207,11 +207,11 @@ def upper(x, rank=0.975):
     return x.quantile(rank)
 
 # Alternative strategy to the get_mean_lower_upper function above
-def aggregate_mean_lower_upper(df_or_groupby, lower_rank=0.025, upper_rank=0.975):
+def mean_lower_upper(df, axis=0, lower_rank=0.025, upper_rank=0.975):
     """Get mean, lower, and upper from a DataFrame or GroupBy object."""
     def lower(x): return x.quantile(lower_rank)
     def upper(x): return x.quantile(upper_rank)
-    return df_or_groupby.agg(['mean', lower, upper])
+    return df.agg(['mean', lower, upper], axis)
 
 def aggregate_with_join(strings, sep='|'):
     """Combines an iterable of strings into a single string by calling
