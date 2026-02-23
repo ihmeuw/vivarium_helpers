@@ -522,9 +522,9 @@ class AlzheimersResultsProcessor:
             treatment_months
             .query(filter_query)
             .drop(columns=['artifact_path', 'entity', 'entity_type'])
-            .rename(columns={'sub_entity': 'months_of_treatment'})
+            .rename(columns={'sub_entity': 'doses_completed'})
             .assign(
-                measure='Treatments by number of doses completed',
+                measure='Medication by number of doses completed',
                 metric='Number',
                 disease_stage='Preclinical AD',)
             .pipe(convert_to_categorical)
@@ -631,7 +631,7 @@ class AlzheimersResultsProcessor:
             'measure': 'Measure',
             'metric': 'Metric',
             disease_stage_column: 'Disease Stage',
-            'months_of_treatment': 'Months of Treatment',
+            'doses_completed': 'Doses Completed',
             'input_draw': 'Draw',
             'value': 'Value',
             'mean': 'Mean',
@@ -699,8 +699,9 @@ class AlzheimersResultsProcessor:
         }
         column_order = [
             'Year', 'Location', 'Age', 'Sex' , 'Disease Stage' , 'Scenario',
-            'Months of Treatment', # Only included in treatment duration
-            'Measure', 'Metric', 'Mean', '95% UI Lower', '95% UI Upper',
+            'Measure', 'Metric',
+            'Doses Completed', # Only included in treatment duration
+            'Mean', '95% UI Lower', '95% UI Upper',
         ] + [c for c in df.columns if c.startswith('draw_')]
         df = (
             df
@@ -725,15 +726,15 @@ class AlzheimersResultsProcessor:
         aggregate categories, calculating rates, summarizing across
         draws, and beautifying columns.
         """
+        current_time()
         df = (
             df
-            .pipe(lambda df: current_time() or df)
             .pipe(self.scale_up_and_append_rates_and_aggregates,
                   include_rate)
             .pipe(self.summarize, include_draws)
             .pipe(self.beautify, disease_stage_column)
-            .pipe(lambda df: current_time() or df)
         )
+        current_time()
         return df
 
     @Timer(name='SummarizingTimer', initial_text=True)
