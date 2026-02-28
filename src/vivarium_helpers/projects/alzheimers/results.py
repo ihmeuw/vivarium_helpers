@@ -8,6 +8,7 @@ from ...vph_output.cleaning import extract_transition_states
 from ...vph_artifact.operations import convert_to_sim_format
 from . import loading, population
 import pandas as pd
+import numpy as np
 from codetiming import Timer
 
 class AlzheimersResultsProcessor:
@@ -156,6 +157,7 @@ class AlzheimersResultsProcessor:
             # which is slightly slower but uses less memory.
             n_location_groups=1,
             filter_burn_in_years=True,
+            filter_youngest_age_group=True,
             artifact_model_number=None,
             colname_to_dtype=None,
             project_dir=None,
@@ -172,6 +174,7 @@ class AlzheimersResultsProcessor:
             locations or self.locations,
             n_location_groups,
             filter_burn_in_years,
+            filter_youngest_age_group,
             artifact_model_number or self.artifact_model_number,
             colname_to_dtype or self.colname_to_dtype,
             project_dir or self.project_directory,
@@ -249,10 +252,18 @@ class AlzheimersResultsProcessor:
         # print_memory_usage(dalys, 'dalys')
         # print(dalys.dtypes)
 
+        # Tolerance for considering a change in DALYs to be 0, due
+        # to floating point errors in subtraction
+        tolerance = 1e-9
         # Calculate averted DALYs
         averted_dalys = (
             self.ops.averted(dalys, baseline_scenario='baseline')
-            .assign(measure='Averted DALYs Associated with AD')
+            .assign(
+                measure='Averted DALYs Associated with AD',
+                value=lambda df: df['value'].mask(
+                    # Zero out tiny values due to floating point errors
+                    np.isclose(df['value'], 0, atol=tolerance), 0)
+            )
         )
         dalys = (
             dalys
@@ -284,11 +295,19 @@ class AlzheimersResultsProcessor:
             # Save memory if possible
             .pipe(convert_to_categorical)
         )
+        # Tolerance for considering a change in prevalence to be 0, due
+        # to floating point errors in subtraction
+        tolerance = 1e-9
         # Compute change in prevalence relative to baseline scenario
         differences = (
             prevalence_counts
             .pipe(self.ops.difference, 'scenario', subtrahend_id='baseline')
-            .assign(measure='Change in Prevalence from Reference')
+            .assign(
+                measure='Change in Prevalence from Reference',
+                # Zero out tiny values due to floating point errors
+                value=lambda df: df['value'].mask(
+                    np.isclose(df['value'], 0, atol=tolerance), 0)
+            )
         )
         prevalence_counts = pd.concat(
             [prevalence_counts, differences], join='inner', ignore_index=True
