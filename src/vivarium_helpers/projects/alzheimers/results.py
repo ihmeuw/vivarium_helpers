@@ -284,6 +284,15 @@ class AlzheimersResultsProcessor:
             # Save memory if possible
             .pipe(convert_to_categorical)
         )
+        # Compute change in prevalence relative to baseline scenario
+        differences = (
+            prevalence_counts
+            .pipe(self.ops.difference, 'scenario', subtrahend_id='baseline')
+            .assign(measure='Change in Prevalence from Reference')
+        )
+        prevalence_counts = pd.concat(
+            [prevalence_counts, differences], join='inner', ignore_index=True
+        ).pipe(convert_to_categorical)
         return prevalence_counts
 
     def process_incidence(self, incidence_bbbm, transitions_ad):
@@ -513,7 +522,9 @@ class AlzheimersResultsProcessor:
         return treatments
 
     def process_months_of_treatment(self, treatment_months):
-        """Preprocess months of treatment data."""
+        """Preprocess months of treatment data to output number of
+        treatment doses for costing.
+        """
         # Filter to age groups where treatment is nonzero, and to
         # treatment scenario since testing scenario is all 0s
         filter_query = loading.FINAL_RESULTS_FILTER_QUERIES[
@@ -531,6 +542,17 @@ class AlzheimersResultsProcessor:
             .astype({'value': 'int'})
         )
         return treatment_months
+
+    def process_person_time(self):
+        """Process person-time data to output population forecasts for
+        client.
+        """
+        person_time = (
+            self.person_time
+            .assign(measure='Population', metric='Number', scenario='baseline',)
+            .pipe(convert_to_categorical)
+        )
+        return person_time
 
     def scale_to_simulation(self, measure):
         """Multiply the values in the `measure` dataframe by the values in
@@ -643,24 +665,26 @@ class AlzheimersResultsProcessor:
             column_name_map = {v: k for k, v in column_name_map.items()}
         return column_name_map
 
-    def scale_up_and_append_rates_and_aggregates(self, df, include_rate=True):
+    def scale_up_and_append_rates_and_aggregates(
+            self, df, include_aggregates=True, include_rates=True):
         """Do final calculations on the dataframe, including scaling to
         real-world population, appending aggregate categories, and
-        calculating rates. Thes steps are common to processing each
+        calculating rates. These steps are common to processing each
         measure and should be performed before summarizing and
         beautifying the data for output.
         """
         df = (
             df
             # Filter out burn-in years before 2025
-            .query('event_year >= 2025')
+            .query('event_year >= 2025 and age_group != "25_to_29"')
             # Scale to real-world values
             .pipe(self.scale_to_real_world)
             # Append rows for "all ages" and "both sexes"
-            .pipe(self.append_aggregate_categories)
+            .pipe(lambda df: self.append_aggregate_categories
+                  if include_aggregates else df)
             # Calculate and append rates
             .pipe(lambda df: self.calculate_rate(df, append=True)
-                  if include_rate else df)
+                  if include_rates else df)
             # Compress data if possible
             .pipe(convert_to_categorical)
         )
@@ -717,7 +741,8 @@ class AlzheimersResultsProcessor:
             self,
             df,
             disease_stage_column='disease_stage',
-            include_rate=True,
+            include_aggregates=True,
+            include_rates=True,
             include_draws=False,
         ):
         """Perform final steps of processing to get from raw simulation
@@ -730,7 +755,7 @@ class AlzheimersResultsProcessor:
         df = (
             df
             .pipe(self.scale_up_and_append_rates_and_aggregates,
-                  include_rate)
+                  include_aggregates, include_rates)
             .pipe(self.summarize, include_draws)
             .pipe(self.beautify, disease_stage_column)
         )
@@ -771,7 +796,7 @@ class AlzheimersResultsProcessor:
         df = (
             df
             # Filter out burn-in years before 2025
-            .query('event_year >= 2025')
+            .query('event_year >= 2025 and age_group != "25_to_29"')
             # Scale to real-world values
             .pipe(self.scale_to_real_world)
             # Append rows for "all ages" and "both sexes"
