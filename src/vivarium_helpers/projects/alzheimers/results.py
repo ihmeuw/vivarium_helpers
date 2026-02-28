@@ -145,6 +145,101 @@ class AlzheimersResultsProcessor:
             pop_structure = self.append_aggregate_categories(pop_structure)
         return pop_structure
 
+    def calculate_counterfactual_populations(
+            self, person_time, prevalence_counts
+        ):
+        """Calculate the counterfactual population in testing and
+        treatment scenarios by adding on change in prevalence counts.
+
+        `person_time` must be in the format output by
+        reformat_population_structure, and `prevalence_counts` must be in
+        the format output by `process_prevalence_counts`, with a measure
+        column that includes 'Change in Prevalence from Reference'. Note
+        that if aggregates have been appended to `person_time`, they will
+        result in NaN since these aren't appended to `prevalence_counts`.
+        """
+        # If person_time has a measure column, save the measure to
+        # assign to change_in_person_time later
+        if 'measure' in person_time:
+            person_time_measure = person_time['measure'].unique()
+            assert len(person_time_measure) == 1, \
+                f"Expected a unique measure in person_time: {person_time_measure}"
+            person_time_measure = person_time_measure[0]
+        else:
+            person_time_measure = None
+
+        change_in_person_time = (
+            prevalence_counts
+            # This filters to testing and treatment scenarios
+            .query("measure == 'Change in Prevalence from Reference'")
+            .drop(columns=['artifact_path', 'entity', 'entity_type',
+                            'measure', 'metric', 'sub_entity'],
+                            errors='ignore')
+            .pipe(self.ops.marginalize, 'disease_stage')
+            # Zero out tiny values due to floating point errors in
+            # marginalize (it seems like some changes in prevalence
+            # exactly cancel out when we sum over disease stages)
+            .assign(value=lambda df: df['value'].mask(
+                np.isclose(df['value'], 0, atol=1e-9), 0))
+        )
+        # Add measure column if person_time had one
+        if person_time_measure is not None:
+            change_in_person_time['measure'] = person_time_measure
+
+        # Broadcast testing and treatment scenarios over baseline
+        # scenario in person_time
+        counterfactual_person_time = (
+            self.ops.value(person_time)
+            + self.ops.value(change_in_person_time)
+        ).reset_index()
+        return counterfactual_person_time
+
+    def load_prevalence_and_append_counterfactual_person_time(
+            self, append_aggregates=False
+        ):
+        """Load Alzheimer's prevalence, process to compute change in
+        person-time between scenarios, and calculate counterfactual
+        person-time in testing and treatment scenarios, and append to
+        person-time dataframe.
+        """
+        if not hasattr(self, 'person_time'):
+            raise ValueError(
+                "Must load population data before appending counterfactual person-time.")
+
+        prevalence_filename = 'person_time_alzheimers_disease_and_other_dementias'
+        prevalence_short_name = 'alzheimers_person_time'
+        processed_prevalence_short_name = f'{prevalence_short_name}_processed'
+
+        # Check if we've already loaded and processed prevalence data
+        if processed_prevalence_short_name not in self.data:
+            # Load raw prevalence if necessary
+            if prevalence_short_name not in self.data:
+                self.load_measure_from_batch_runs(
+                    prevalence_filename, prevalence_short_name,
+                    filters=loading.FINAL_RESULTS_FILTERS[prevalence_filename])
+            # Process prevalence to compute change in person-time, among
+            # other things, and save for generating final outputs later
+            self.data[processed_prevalence_short_name] = (
+                self.process_prevalence_counts(
+                    self.data[prevalence_short_name])
+            )
+        # Calculate counterfactual person-time using baseline
+        # person-time and prevalence counts from counterfactual
+        # scenarios
+        counterfactual_person_time = self.calculate_counterfactual_populations(
+            self.person_time, self.data[processed_prevalence_short_name])
+
+        # Append counterfactual person-time to person-time
+        self.person_time = (
+            pd.concat(
+                [self.person_time.assign(scenario='baseline'),
+                 counterfactual_person_time],
+                 ignore_index=True)
+        )
+        if append_aggregates:
+            self.person_time = self.append_aggregate_categories(
+                self.person_time)
+
     def load_measure_from_batch_runs(
             self,
             measure,
@@ -252,9 +347,6 @@ class AlzheimersResultsProcessor:
         # print_memory_usage(dalys, 'dalys')
         # print(dalys.dtypes)
 
-        # Tolerance for considering a change in DALYs to be 0, due
-        # to floating point errors in subtraction
-        tolerance = 1e-9
         # Calculate averted DALYs
         averted_dalys = (
             self.ops.averted(dalys, baseline_scenario='baseline')
@@ -262,7 +354,8 @@ class AlzheimersResultsProcessor:
                 measure='Averted DALYs Associated with AD',
                 value=lambda df: df['value'].mask(
                     # Zero out tiny values due to floating point errors
-                    np.isclose(df['value'], 0, atol=tolerance), 0)
+                    # in subtraction
+                    np.isclose(df['value'], 0, atol=1e-9), 0)
             )
         )
         dalys = (
@@ -290,23 +383,21 @@ class AlzheimersResultsProcessor:
             # each AD state
             .pipe(self.ops.marginalize, 'treatment')
             # Assign measure and metric
-            .assign(measure='Prevalence', metric='Number',
-                    disease_stage=lambda df: df['sub_entity'])
+            .assign(measure='Prevalence', metric='Number')
+            .rename(columns={'sub_entity': 'disease_stage'})
             # Save memory if possible
             .pipe(convert_to_categorical)
         )
-        # Tolerance for considering a change in prevalence to be 0, due
-        # to floating point errors in subtraction
-        tolerance = 1e-9
         # Compute change in prevalence relative to baseline scenario
         differences = (
             prevalence_counts
             .pipe(self.ops.difference, 'scenario', subtrahend_id='baseline')
             .assign(
                 measure='Change in Prevalence from Reference',
-                # Zero out tiny values due to floating point errors
+                # Zero out tiny values due to floating point errors in
+                # subtraction
                 value=lambda df: df['value'].mask(
-                    np.isclose(df['value'], 0, atol=tolerance), 0)
+                    np.isclose(df['value'], 0, atol=1e-9), 0)
             )
         )
         prevalence_counts = pd.concat(
