@@ -152,11 +152,13 @@ class AlzheimersResultsProcessor:
         treatment scenarios by adding on change in prevalence counts.
 
         `person_time` must be in the format output by
-        reformat_population_structure, and `prevalence_counts` must be in
-        the format output by `process_prevalence_counts`, with a measure
-        column that includes 'Change in Prevalence from Reference'. Note
-        that if aggregates have been appended to `person_time`, they will
-        result in NaN since these aren't appended to `prevalence_counts`.
+        reformat_population_structure, and `prevalence_counts` must be
+        in the format output by `process_prevalence_counts`, with a
+        measure column that includes 'Change in Prevalence from
+        Reference', and NOT yet scaled to real-world values. Note that
+        if aggregates have been appended to `person_time`, they will
+        result in NaN since these aren't appended to
+        `prevalence_counts`.
         """
         # If person_time has a measure column, save the measure to
         # assign to change_in_person_time later
@@ -181,6 +183,8 @@ class AlzheimersResultsProcessor:
             # exactly cancel out when we sum over disease stages)
             .assign(value=lambda df: df['value'].mask(
                 np.isclose(df['value'], 0, atol=1e-9), 0))
+            # Scale sim prevalence to real-world scale
+            .pipe(self.scale_to_real_world)
         )
         # Add measure column if person_time had one
         if person_time_measure is not None:
@@ -657,9 +661,17 @@ class AlzheimersResultsProcessor:
         """Process person-time data to output population forecasts for
         client.
         """
+        # If scenario column isn't already present, we haven't appended
+        # counterfactual person-time, so person-time is from baseline
+        # scenario
+        if 'scenario' not in self.person_time:
+            person_time = self.person_time.assign(scenario='baseline')
         person_time = (
             self.person_time
-            .assign(measure='Population', metric='Number', scenario='baseline',)
+            # Filter out burn-in years before 2025 and youngest age
+            # group 25-29 since it's all 0s
+            .query('event_year >= 2025 and age_group != "25_to_29"')
+            .assign(measure='Population', metric='Number')
             .pipe(convert_to_categorical)
         )
         return person_time
