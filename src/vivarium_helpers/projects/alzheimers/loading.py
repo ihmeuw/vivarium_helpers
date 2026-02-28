@@ -508,6 +508,7 @@ def load_measure_from_batch_runs(
         # which is slightly slower but uses less memory.
         n_location_groups=1,
         filter_burn_in_years=True,
+        filter_youngest_age_group=True,
         artifact_model_number=FINAL_ARTIFACT_MODEL_NUMBER,
         colname_to_dtype=colname_to_dtype,
         project_dir=PROJECT_DIRECTORY,
@@ -522,13 +523,18 @@ def load_measure_from_batch_runs(
         # return its value. If not, insert key with a value of default
         # and return default.
         print("Warning: Not aggregating seeds, which may require lots of memory")
+    additional_filters = []
     if filter_burn_in_years:
         # Filter out years before 2025 because for model 8.4, years
         # 2022-2024 are for burn-in
-        year_filter = ('event_year', '>=', '2025')
-        # Add the year filter to the user filters
-        user_filters = kwargs.get('filters') # Defaults to None
-        kwargs['filters'] = add_parquet_AND_filter(year_filter, user_filters)
+        additional_filters.append(('event_year', '>=', '2025'))
+    if filter_youngest_age_group:
+        # Filter out age group 25-29 because it has 0s for all measures
+        # after we updated the model in Jan/Feb 2026
+        additional_filters.append(('age_group', '!=', '25_to_29'))
+    for f in additional_filters:
+        # Add the new filter to the user filters
+        kwargs['filters'] = add_parquet_AND_filter(f, kwargs.get('filters'))
     dfs = []
     print(kwargs.get('filters'))
     for run_dir in batch_run_dirs:
