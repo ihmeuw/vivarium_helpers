@@ -176,7 +176,9 @@ class AlzheimersResultsProcessor:
             .query("measure == 'Change in Prevalence from Reference'")
             .drop(columns=['artifact_path', 'entity', 'entity_type',
                             'measure', 'metric', 'sub_entity'],
+                            # ignore in case sub_entity doesn't exist
                             errors='ignore')
+            # NOTE: sub_entity and disease_stage are redundant
             .pipe(self.ops.marginalize, 'disease_stage')
             # Zero out tiny values due to floating point errors in
             # marginalize (it seems like some changes in prevalence
@@ -802,7 +804,7 @@ class AlzheimersResultsProcessor:
             # Scale to real-world values
             .pipe(self.scale_to_real_world)
             # Append rows for "all ages" and "both sexes"
-            .pipe(lambda df: self.append_aggregate_categories
+            .pipe(lambda df: self.append_aggregate_categories(df)
                   if include_aggregates else df)
             # Calculate and append rates
             .pipe(lambda df: self.calculate_rate(df, append=True)
