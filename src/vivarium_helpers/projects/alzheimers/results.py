@@ -473,11 +473,17 @@ class AlzheimersResultsProcessor:
                 (df['measure']=='Medication Initiation')
                 & (df['scenario']=='BBBM Testing Only'), 'value'] = 0.0
             return df
-        # Need to map beautified names back to sim output names to
-        # process together with sim results
+        # Need to map beautified names and values back to sim output
+        # names/values to process together with sim results
+        column_value_map = self.get_column_value_map(inverse=True)
         column_name_map = self.get_column_name_map(inverse=True)
         mslt_results = (
             mslt_results
+            # Replace values before column names because value map uses
+            # beautified column names. This is in the reverse order of
+            # how the maps are applied in .beautify because these are
+            # the inverse maps.
+            .replace(column_value_map)
             .rename(columns=column_name_map)
             .pipe(convert_draws_to_integers)
             .query(f"input_draw in {self.draws}")
@@ -789,6 +795,45 @@ class AlzheimersResultsProcessor:
             column_name_map = {v: k for k, v in column_name_map.items()}
         return column_name_map
 
+    def get_column_value_map(
+            self,
+            disease_stage_colname='Disease Stage',
+            scenario_colname='Scenario',
+            inverse=False
+    ):
+        """Get a nested dictionary suitible to pass to
+        DataFrame.replace(), where the top level keys are column names,
+        and each column name maps to a subdictionary that maps values in
+        that column to alternate values they are to be replaced with.
+        Used to rename column values in the .beautify() method. If
+        `inverse=True`, is passed, subdictionaries will map "beautified"
+        column values back to the original column values.
+        """
+        disease_stage_name_map = {
+            'alzheimers_blood_based_biomarker_state': 'Preclinical AD',
+            'alzheimers_mild_cognitive_impairment_state': 'MCI due to AD',
+            'alzheimers_disease_state' : 'AD Dementia'
+        }
+        scenario_name_map = {
+            'baseline': 'Reference',
+            'bbbm_testing': 'BBBM Testing Only',
+            'bbbm_testing_and_treatment' : 'BBBM Testing and Treatment',
+        }
+        column_value_map = {
+            disease_stage_colname: disease_stage_name_map,
+            scenario_colname: scenario_name_map,
+        }
+        if inverse:
+            # Keep column names the same, but invert the value map for
+            # each column
+            column_value_map = {
+                colname:
+                # invert the subdictionary for this column
+                {v: k for k, v in value_map.items()}
+                for colname, value_map in column_value_map.items()
+            }
+        return column_value_map
+
     def scale_up_and_append_rates_and_aggregates(
             self, df, include_aggregates=True, include_rates=True):
         """Do final calculations on the dataframe, including scaling to
@@ -835,16 +880,7 @@ class AlzheimersResultsProcessor:
         them in the right order.
         """
         column_name_map = self.get_column_name_map(disease_stage_column)
-        disease_stage_name_map = {
-            'alzheimers_blood_based_biomarker_state': 'Preclinical AD',
-            'alzheimers_mild_cognitive_impairment_state': 'MCI due to AD',
-            'alzheimers_disease_state' : 'AD Dementia'
-        }
-        scenario_name_map = {
-            'baseline': 'Reference',
-            'bbbm_testing': 'BBBM Testing Only',
-            'bbbm_testing_and_treatment' : 'BBBM Testing and Treatment',
-        }
+        column_value_map = self.get_column_value_map()
         column_order = [
             'Year', 'Location', 'Age', 'Sex' , 'Disease Stage' , 'Scenario',
             'Measure', 'Metric',
@@ -854,9 +890,7 @@ class AlzheimersResultsProcessor:
         df = (
             df
             .rename(columns=column_name_map)
-            .replace(
-                {'Disease Stage': disease_stage_name_map,
-                'Scenario': scenario_name_map})
+            .replace(column_value_map)
             .pipe(lambda df: df[[c for c in column_order if c in df]])
         )
         return df
