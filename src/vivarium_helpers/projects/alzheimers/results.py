@@ -583,7 +583,8 @@ class AlzheimersResultsProcessor:
         # rates?
         susceptible_treatments = mslt_results.query(
             "measure=='Medication Initiation'"
-            " and scenario == 'BBBM Testing and Treatment'"
+            # Scenario has been converted back to sim format
+            " and scenario == 'bbbm_testing_and_treatment'"
         )
         # Check measure column to determine whether we're working with
         # treatment transition counts or treatment duration
