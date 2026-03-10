@@ -398,7 +398,7 @@ def load_sim_output(
                 kwargs['filters'] = add_parquet_AND_filter(
                     location_filter, user_filters)
                 # TODO: Use logging not printing
-                print(location_filter)
+                # print(location_filter)
             else:
                 print("'artifact_path' column missing from parquet file."
                       " Not filtering locations.")
@@ -410,7 +410,8 @@ def load_sim_output(
                 col.name for col in parquet_dataset.schema
                 if not pa.types.is_floating(col.type)]
 
-        print(kwargs.get('filters'))
+        # TODO: Use logging not printing
+        # print(kwargs.get('filters'))
         # Read the parquet file
         df = pd.read_parquet(parquet_file_path, **kwargs)
         # df = parquet_dataset.read(**kwargs).to_pandas()
@@ -554,7 +555,7 @@ def load_measure_from_batch_runs(
             # location_to_results_dir, location_to_artifact_path = get_results_and_artifact_dicts(
             #     location_group, run_dir, artifact_model_number, project_dir
             # )
-            print(location_to_artifact_path)
+            # print(location_to_artifact_path)
             df = load_sim_output(
                 measure, location_to_results_dir, location_to_artifact_path, colname_to_dtype, **kwargs
             )
