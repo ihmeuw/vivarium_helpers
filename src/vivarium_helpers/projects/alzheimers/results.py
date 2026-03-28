@@ -763,6 +763,55 @@ class AlzheimersResultsProcessor:
             result = rate
         return result
 
+    def calculate_difference_from_baseline(
+            self,
+            measure,
+            averted=True,
+            append=False,
+        ):
+        """Calculate the difference in a measure between each scenario
+        and the baseline scenario. If `averted=True`, calculates the
+        difference as baseline minus scenario, so that positive values
+        indicate improvement compared to baseline and can be interpreted
+        as "averted" burden. If `averted=False`, calculates the
+        difference as scenario minus baseline, so that positive values
+        indicate worsening compared to baseline and can be interpreted
+        as "change in burden from reference". If `append=True`, appends
+        the calculated differences to the original measure dataframe; if
+        False, just returns the calculated differences.
+
+        We can use this function to compute differences in counts or
+        rates.
+        """
+        if averted:
+            minuend_id = 'baseline'
+            subtrahend_id = None
+            def measure_name_func(measure_name):
+                return f'Averted {measure_name}'
+        else:
+            minuend_id = None
+            subtrahend_id = 'baseline'
+            def measure_name_func(measure_name):
+                return f'Change in {measure_name} from Reference'
+        # Compute change in measure relative to baseline scenario
+        differences = (
+            self.ops.difference(measure, 'scenario', minuend_id, subtrahend_id)
+            .assign(
+                measure=lambda df: df['measure'].map(measure_name_func),
+                # Zero out tiny values due to floating point errors in
+                # subtraction
+                value=lambda df: df['value'].mask(
+                    np.isclose(df['value'], 0, atol=1e-9), 0)
+            )
+        )
+        if append:
+            result = pd.concat(
+                [measure, differences], join='inner', ignore_index=True
+            ).pipe(convert_to_categorical)
+        else:
+            result = differences
+        return result
+
     def get_column_name_map(
             self,
             # disease_stage is a placeholder we use in case there is no
