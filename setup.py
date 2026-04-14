@@ -41,8 +41,7 @@ if __name__ == "__main__":
     setup_requires = ["setuptools_scm"]
 
     install_requirements = [
-        "vivarium_dependencies[numpy,pandas,db_queries,loguru,scipy]",
-        "vivarium_build_utils>=2.1.1,<3.0.0",
+        "vivarium_dependencies[numpy,pandas,db_queries,loguru,scipy,vivarium_build_utils]",
     ]
     test_requirements = ["vivarium_dependencies[pytest]"]
     lint_requirements = ["vivarium_dependencies[lint]"]
