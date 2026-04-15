@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     install_requirements = [
         "vivarium_dependencies[numpy,pandas,db_queries,loguru,scipy]",
-        "vivarium_build_utils>=2.1.1,<3.0.0",
+        "vivarium_build_utils>=3.0.2,<4.0.0",
     ]
     test_requirements = ["vivarium_dependencies[pytest]"]
     lint_requirements = ["vivarium_dependencies[lint]"]
