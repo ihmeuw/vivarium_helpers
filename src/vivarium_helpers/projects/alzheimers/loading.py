@@ -11,8 +11,8 @@ from ...utils import convert_to_categorical, print_memory_usage
 
 # Project directory
 PROJECT_DIRECTORY = Path('/mnt/team/simulation_science/pub/models/vivarium_csu_alzheimers/')
-# Artifact for models 8.3 - 8.7
-FINAL_ARTIFACT_MODEL_NUMBER = '8.3'
+# Artifact for models 10.0 - 12.2
+FINAL_ARTIFACT_MODEL_NUMBER = '10.0'
 
 LOCATIONS = [
     'United States of America',
@@ -37,11 +37,15 @@ TREATMENT_ELIGIBLE_AGE_GROUPS = [
 # Parquet filters in disjunctive normal form to use when loading data
 # for final results, to save memory and time
 FINAL_RESULTS_FILTERS = {
-    # Filter out 'other_causes' deaths since we don't need it
-    'deaths': [('entity', '==', 'alzheimers_disease_state')],
-    # Filter out 'other_causes' YLLs
-    'ylls': [('entity', '==', 'alzheimers_disease_state')],
-    # Filter out 'treatment' and 'all_causes' YLDs
+    # Keep all deaths, due to both 'alzheimers_disease_state' and
+    # 'other_causes'
+    'deaths': None,
+    # Keep all YLLs, due to both 'alzheimers_disease_state' and
+    # 'other_causes'
+    'ylls': None,
+    # Filter out 'treatment' and 'all_causes' YLDs - treatment should
+    # have all 0s for YLDs, and all-causes YLDs are eaual to YLDs due to
+    # AD
     'ylds': [('entity', '==', 'alzheimers_disease_and_other_dementias')],
     # No filters for AD prevalence
     'person_time_alzheimers_disease_and_other_dementias': None,
