@@ -293,25 +293,46 @@ class AlzheimersResultsProcessor:
 
     def process_deaths(self, deaths):
         """Preprocess the deaths dataframe and compute averted deaths."""
-        # Filter to only deaths due to AD
-        deaths = deaths.query("entity=='alzheimers_disease_state'")
+        # Apply the appropriate filter. Prior to 2026-05-29, this
+        # filtered to only deaths due to AD, but now the filter is None
+        # so that we include other_causes
+        filter_query = loading.FINAL_RESULTS_FILTER_QUERIES['deaths']
+        if filter_query:
+            deaths = deaths.query(filter_query)
+        # Filter to
+        # deaths = deaths.query("entity=='alzheimers_disease_state'")
         # Calculate averted deaths
         averted_deaths = (
             self.ops.averted(deaths, baseline_scenario='baseline')
-            .assign(measure='Averted Deaths Associated with AD')
+            .assign(
+                measure=lambda df: df['entity'].map({
+                    'alzheimers_disease_state':
+                        'Averted Deaths Associated with AD',
+                    'other_causes':
+                        'Averted Deaths Due to Other Causes'}))
         )
         # Do transformations
         deaths = (
             deaths
-            # Rename the measure
-            .assign(measure='Deaths Associated with AD')
+            # Reassign measure based on cause of death
+            .assign(
+                measure=lambda df: df['entity'].map({
+                    'alzheimers_disease_state': 'Deaths Associated with AD',
+                    'other_causes': 'Deaths Due to Other Causes'}))
             # Concatenate deaths with averted deaths
             .pipe(lambda df:
                 # Use inner join to drop "subtracted_from" column added by
                 # .averted
                 pd.concat([df, averted_deaths], join='inner', ignore_index=True))
-            # Assign same metric to both deaths and averted deaths
-            .assign(metric='Number', disease_stage=lambda df: df['entity'])
+            .assign(
+                # Assign same metric to both deaths and averted deaths
+                metric='Number',
+                # Deaths are not stratified by disease stage, so deaths
+                # due to other causes are aggregated across all stages,
+                # while deaths due to AD are always in the AD dementia
+                # stage
+                disease_stage=lambda df: df['entity'].replace(
+                    'other_causes', 'all'))
             .pipe(convert_to_categorical)
         )
         return deaths
@@ -319,13 +340,18 @@ class AlzheimersResultsProcessor:
     def process_dalys(self, ylls, ylds):
         """Process YLLs and YLDs dataframes to get DALYs and averted DALYs.
         """
-        # Filter to only YLLs and YLDs due to AD, and rename so the entity
-        # is the same between the two, so that the VPHResults object will
-        # add YLLs and YLDs instead of keeping them separate
+        # Filter to only YLLs due to AD
+        ylls_filter = loading.FINAL_RESULTS_FILTER_QUERIES['ylls']
+        if ylls_filter:
+            ylls = ylls.query(ylls_filter)
+
+        # Rename so the entity is the same between YLLs and YLDs, so
+        # that the VPHResults object will add YLLs and YLDs instead of
+        # keeping them separate
+
         ylls = (
             ylls
-            .query("entity=='alzheimers_disease_state'")
-            # Choose an arbitrary diseas name
+            # Choose an arbitrary disease name
             .replace({'entity': {'alzheimers_disease_state': 'AD'}})
             # Add a sub_entity column to specify disease stage
             .assign(sub_entity='alzheimers_disease_state')
@@ -343,7 +369,8 @@ class AlzheimersResultsProcessor:
         )
         ylds = (
             ylds
-            .query("entity=='alzheimers_disease_and_other_dementias'")
+            # Filter to only YLDs due to AD
+            .query(loading.FINAL_RESULTS_FILTER_QUERIES['ylds'])
             # Choose the same arbitrary disease name
             .replace({'entity': {'alzheimers_disease_and_other_dementias': 'AD'}})
             .pipe(convert_to_categorical)
@@ -864,7 +891,8 @@ class AlzheimersResultsProcessor:
         disease_stage_name_map = {
             'alzheimers_blood_based_biomarker_state': 'Preclinical AD',
             'alzheimers_mild_cognitive_impairment_state': 'MCI due to AD',
-            'alzheimers_disease_state' : 'AD Dementia'
+            'alzheimers_disease_state' : 'AD Dementia',
+            'all': 'All', # Needed for deaths due to other causes
         }
         scenario_name_map = {
             'baseline': 'Reference',
