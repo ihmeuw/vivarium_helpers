@@ -40,9 +40,8 @@ FINAL_RESULTS_FILTERS = {
     # Keep all deaths, due to both 'alzheimers_disease_state' and
     # 'other_causes'
     'deaths': None,
-    # Keep all YLLs, due to both 'alzheimers_disease_state' and
-    # 'other_causes'
-    'ylls': None,
+    # Filter out 'other_causes' YLLs
+    'ylls': [('entity', '==', 'alzheimers_disease_state')],
     # Filter out 'treatment' and 'all_causes' YLDs - treatment should
     # have all 0s for YLDs, and all-causes YLDs are eaual to YLDs due to
     # AD
@@ -95,14 +94,17 @@ def get_query_strings_from_parquet_filters(parquet_filters):
     specifications used for loading parquet files. These will be used to
     filter the dataframes when processing in case they were loaded
     without filtering.
+
     Args:
         parquet_filters (dict): A dictionary where keys are file names
-            and values are lists of filter specifications. Each filter
-            specification is a tuple of the form (column_name, operator,
-            value).
+            and values are either None or lists of filter
+            specifications. Each filter specification is a tuple of the
+            form (column_name, operator, value).
     Returns:
         dict: A dictionary where keys are file names and values are
-            query strings that can be used with pandas DataFrame.query()
+            query strings that can be used with pandas
+            DataFrame.query(), or None if the list of filters for the
+            file was None.
     """
     queries = {}
     for filename, filters in parquet_filters.items():
